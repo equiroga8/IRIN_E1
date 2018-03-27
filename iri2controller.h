@@ -49,7 +49,7 @@ private:
 
 	void ExecuteBehaviors ( void );
 	void Coordinator ( void );
-
+	void Consume (unsigned int un_priority);
 	void ObstacleAvoidance ( unsigned int un_priority );
 	void Navigate ( unsigned int un_priority );
 };

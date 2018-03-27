@@ -33,9 +33,10 @@ extern long int rngSeed;
 
 using namespace std;
 
-#define BEHAVIORS 2
+#define BEHAVIORS 3
 #define AVOID_PRIORITY 0
-#define NAVIGATE_PRIORITY 1
+#define CONSUME_PRIORITY 1
+#define NAVIGATE_PRIORITY 2
 #define SPEED 500
 
 #define PROXIMITY_THRESHOLD 0.3
@@ -278,6 +279,7 @@ void CIri2Controller::ExecuteBehaviors ( void )
 	
 	ObstacleAvoidance ( AVOID_PRIORITY );
 	Navigate ( NAVIGATE_PRIORITY );
+	Consume ( CONSUME_PRIORITY );
 }
 
 
@@ -394,7 +396,53 @@ void CIri2Controller::Navigate ( unsigned int un_priority )
 	changeAngle -= 0.001/divider;
 	divider += 0.001;
 
-	m_fActivationTable[un_priority][0] = changeAngle;
+	m_fActivationTable[un_priority][0] = 0; //changeAngle;
+	m_fActivationTable[un_priority][1] = 0.5;
+	m_fActivationTable[un_priority][2] = 1.0;
+
+	printf("changeAngle => %2.4f\n",m_fActivationTable[un_priority][0]);
+
+	if (m_nWriteToFile ) 
+	{
+		/* INIT: WRITE TO FILES */
+		/* Write level of competence ouputs */
+		FILE* fileOutput = fopen("outputFiles/navigateOutput", "a");
+		fprintf(fileOutput,"%2.4f %2.4f %2.4f %2.4f \n", m_fTime, m_fActivationTable[un_priority][2], m_fActivationTable[un_priority][0], m_fActivationTable[un_priority][1]);
+		fclose(fileOutput);
+		/* END WRITE TO FILES */
+	}
+
+}
+
+void CIri2Controller::Consume ( unsigned int un_priority )
+{
+	double* bluelight = m_seBlueLight->GetSensorReading(m_pcEpuck);
+	m_seBlueLight = (CRealBlueLightSensor*) m_pcEpuck->GetSensor(SENSOR_REAL_BLUE_LIGHT);
+
+	if (bluelight[2]+bluelight[3] > bluelight[0]+bluelight[7]){
+		m_fActivationTable[un_priority][0] = 0.5;
+	}
+	else if (bluelight[4]+bluelight[5] > bluelight[0]+bluelight[7]){
+		m_fActivationTable[un_priority][0] = -0.5;
+	}
+	else {
+		if ( bluelight[0] > bluelight[7] ){
+			m_fActivationTable[un_priority][0] = 0.4;
+		}
+		else {
+			m_fActivationTable[un_priority][0] = -0.4;
+		}
+
+	}
+
+	if ( (bluelight[0]+bluelight[7]) > 1.3 ){
+
+		m_seBlueLight -> SwitchNearestLight(0);
+
+	}
+	
+
+	
 	m_fActivationTable[un_priority][1] = 0.5;
 	m_fActivationTable[un_priority][2] = 1.0;
 
