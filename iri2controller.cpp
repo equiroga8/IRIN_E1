@@ -6,6 +6,8 @@
 #include <gsl/gsl_randist.h>
 #include <sys/time.h>
 #include <iostream>
+#include <cstdlib>
+#include <ctime>
 
 /******************** Simulator ****************/
 /******************** Sensors ******************/
@@ -30,13 +32,16 @@
 
 extern gsl_rng* rng;
 extern long int rngSeed;
+extern bool canConsume = true; // Variable global que sirve para que blueBattery solo aumente 0.25 por cada luz consumida 
+extern bool canUnload = false;
 
 using namespace std;
 
-#define BEHAVIORS 3
+#define BEHAVIORS 4
 #define AVOID_PRIORITY 0
-#define CONSUME_PRIORITY 1
-#define NAVIGATE_PRIORITY 2
+#define UNLOAD_PRIORITY 1
+#define CONSUME_PRIORITY 2
+#define NAVIGATE_PRIORITY 3
 #define SPEED 500
 
 #define PROXIMITY_THRESHOLD 0.3
@@ -79,6 +84,8 @@ CIri2Controller::CIri2Controller (const char* pch_name, CEpuck* pc_epuck, int n_
 
 	changeAngle = 0.3;
 	divider = 1;
+
+	consumeInhibitor = 1.0;
 
 	m_fActivationTable = new double* [BEHAVIORS];
 	for ( int i = 0 ; i < BEHAVIORS ; i++ )
@@ -140,11 +147,11 @@ void CIri2Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 	
 	/* Inicio Incluir las ACCIONES/CONTROLADOR a implementar */
 	printf("----------------------------------------------------------------------------\n");
-	printf("CONTACT: ");
+	/*printf("CONTACT: ");
 	for ( int i = 0 ; i < m_seContact->GetNumberOfInputs() ; i ++ )
 	{
 		printf("%1.3f ", contact[i]);
-	}
+	}*/
 	printf("\n");
 	
 	printf("PROX: ");
@@ -153,14 +160,14 @@ void CIri2Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 		printf("%1.3f ", prox[i]);
 	}
 	printf ("\n");
-	
+	/*
 	printf("LIGHT: ");
 	for ( int i = 0 ; i < m_seLight->GetNumberOfInputs() ; i ++ )
 	{
 		printf("%1.3f ", light[i]);
-	}
+	} 
 	printf ("\n");
-	
+	*/
 	printf("BLUE LIGHT: ");
 	for ( int i = 0 ; i < m_seBlueLight->GetNumberOfInputs() ; i ++ )
 	{
@@ -181,7 +188,7 @@ void CIri2Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 		printf("%1.3f ", ground[i]);
 	}
 	printf("\n");
-
+	/*
 	printf("GROUND MEMORY: ");
 	for ( int i = 0 ; i < m_seGroundMemory->GetNumberOfInputs() ; i ++ )
 	{
@@ -195,7 +202,7 @@ void CIri2Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 		printf("%1.3f ", battery[i]);
 	}
 	printf("\n");
-	
+	*/
 	printf("BLUE BATTERY: ");
 	for ( int i = 0 ; i < m_seBlueBattery->GetNumberOfInputs() ; i ++ )
 	{
@@ -208,14 +215,14 @@ void CIri2Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 		printf("%1.3f ", redbattery[i]);
 	}
 	printf("\n");
-	
+	/*
   printf("ENCODER: ");
 	for ( int i = 0 ; i < m_seEncoder->GetNumberOfInputs() ; i ++ )
 	{
 		printf("%1.5f ", encoder[i]);
 	}
 	printf("\n");
-  
+	*/  
   printf("COMPASS: ");
 	for ( int i = 0 ; i < m_seCompass->GetNumberOfInputs() ; i ++ )
 	{
@@ -280,6 +287,7 @@ void CIri2Controller::ExecuteBehaviors ( void )
 	ObstacleAvoidance ( AVOID_PRIORITY );
 	Navigate ( NAVIGATE_PRIORITY );
 	Consume ( CONSUME_PRIORITY );
+	Unload( UNLOAD_PRIORITY );
 }
 
 
@@ -392,16 +400,17 @@ void CIri2Controller::ObstacleAvoidance ( unsigned int un_priority )
 void CIri2Controller::Navigate ( unsigned int un_priority )
 {
   /* Direction Angle 0.0 and always active. We set its vector intensity to 0.5 if used */
-	
-	changeAngle -= 0.001/divider;
+	srand((int)time(0));
+	int r = rand() % 10;
+	//changeAngle -= 0.001/divider;
 	divider += 0.001;
 
-	m_fActivationTable[un_priority][0] = 0; //changeAngle;
+	m_fActivationTable[un_priority][0] = 0.0;
 	m_fActivationTable[un_priority][1] = 0.5;
 	m_fActivationTable[un_priority][2] = 1.0;
 
 	printf("changeAngle => %2.4f\n",m_fActivationTable[un_priority][0]);
-
+	printf("Random  number: %i\n",r);
 	if (m_nWriteToFile ) 
 	{
 		/* INIT: WRITE TO FILES */
@@ -418,35 +427,91 @@ void CIri2Controller::Consume ( unsigned int un_priority )
 {
 	double* bluelight = m_seBlueLight->GetSensorReading(m_pcEpuck);
 	m_seBlueLight = (CRealBlueLightSensor*) m_pcEpuck->GetSensor(SENSOR_REAL_BLUE_LIGHT);
+	double* bluebattery = m_seBlueBattery->GetSensorReading(m_pcEpuck);
 
-	if (bluelight[2]+bluelight[3] > bluelight[0]+bluelight[7]){
-		m_fActivationTable[un_priority][0] = 0.5;
-	}
-	else if (bluelight[4]+bluelight[5] > bluelight[0]+bluelight[7]){
-		m_fActivationTable[un_priority][0] = -0.5;
-	}
-	else {
-		if ( bluelight[0] > bluelight[7] ){
-			m_fActivationTable[un_priority][0] = 0.4;
+	if (consumeInhibitor == 1.0){
+
+		if (bluelight[2]+bluelight[3] > bluelight[0]+bluelight[7]){
+			changeAngle = -0.5;
+		}
+		else if (bluelight[4]+bluelight[5] > bluelight[0]+bluelight[7]){
+			changeAngle = 0.5;
 		}
 		else {
-			m_fActivationTable[un_priority][0] = -0.4;
+			if ( bluelight[0] > bluelight[7] ){
+				changeAngle = 0.4;
+			}
+			else {
+				changeAngle = -0.4;
+			}
 		}
 
+		if ( (bluelight[0]+bluelight[7]) > 1.4 ){
+			// Si esta lo suficientemente cerca apaga la luz
+			canConsume = true;
+			m_seBlueLight -> SwitchNearestLight(0);
+			if (bluebattery[0] == 1.0){
+				consumeInhibitor = 0.0;
+			}
+
+		}
+		if ( bluelight[0]+bluelight[1]+bluelight[2]+bluelight[3]+bluelight[4]+bluelight[5]+bluelight[6]+bluelight[7] == 0 ){
+			changeAngle = 0.0;
+		}
+		if (changeAngle != 0){
+			m_pcEpuck->SetAllColoredLeds(	LED_COLOR_BLUE);
+		}
 	}
-
-	if ( (bluelight[0]+bluelight[7]) > 1.3 ){
-
-		m_seBlueLight -> SwitchNearestLight(0);
-
-	}
-	
-
-	
+	m_fActivationTable[un_priority][0] = changeAngle;
 	m_fActivationTable[un_priority][1] = 0.5;
 	m_fActivationTable[un_priority][2] = 1.0;
 
+	
+
 	printf("changeAngle => %2.4f\n",m_fActivationTable[un_priority][0]);
+	printf("consumeInhibitor => %2.4f\n", consumeInhibitor);
+	printf("canConsume => %d\n", canConsume);
+
+	if (m_nWriteToFile ) 
+	{
+		/* INIT: WRITE TO FILES */
+		/* Write level of competence ouputs */
+		FILE* fileOutput = fopen("outputFiles/navigateOutput", "a");
+		fprintf(fileOutput,"%2.4f %2.4f %2.4f %2.4f \n", m_fTime, m_fActivationTable[un_priority][2], m_fActivationTable[un_priority][0], m_fActivationTable[un_priority][1]);
+		fclose(fileOutput);
+		/* END WRITE TO FILES */
+	}
+
+}
+
+void CIri2Controller::Unload ( unsigned int un_priority )
+{
+	double* bluelight = m_seBlueLight->GetSensorReading(m_pcEpuck);
+	m_seBlueLight = (CRealBlueLightSensor*) m_pcEpuck->GetSensor(SENSOR_REAL_BLUE_LIGHT);
+	double* ground = m_seGround->GetSensorReading(m_pcEpuck);
+	double* bluebattery = m_seBlueBattery->GetSensorReading(m_pcEpuck);
+
+	if (consumeInhibitor == 0.0)
+	{
+		m_pcEpuck->SetAllColoredLeds(	LED_COLOR_YELLOW);
+
+		if ( bluelight[0]+bluelight[1]+bluelight[2]+bluelight[3]+bluelight[4]+bluelight[5]+bluelight[6]+bluelight[7] == 0 ){
+			changeAngle = 0.0;
+		}
+
+		/* TODO: AQUI EL ROBOT DEBE EVITAR LAS LUCES AZULES */
+	}
+
+	if ((ground[0]== 0.5) && (ground[1] == 0.5) && (ground[2]== 0.5)){ // Si los tres sensores ground estan a cero descarga la bateria
+		canUnload = true;
+		consumeInhibitor = 1.0;
+	}
+
+	m_fActivationTable[un_priority][0] = changeAngle;
+	m_fActivationTable[un_priority][1] = 0.5;
+	m_fActivationTable[un_priority][2] = 1.0;
+
+	
 
 	if (m_nWriteToFile ) 
 	{

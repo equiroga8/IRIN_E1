@@ -44,6 +44,7 @@ private:
 	double 		m_fTime;
 	double		changeAngle;
 	double 		divider;
+	double		consumeInhibitor;
 
 	/* Functions */
 
@@ -52,6 +53,7 @@ private:
 	void Consume (unsigned int un_priority);
 	void ObstacleAvoidance ( unsigned int un_priority );
 	void Navigate ( unsigned int un_priority );
+	void Unload (unsigned int un_priority );
 };
 
 #endif
