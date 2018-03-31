@@ -39,7 +39,7 @@ using namespace std;
 
 #define BEHAVIORS 4
 #define AVOID_PRIORITY 0
-#define UNLOAD_PRIORITY 1
+#define AVOID_BLUE_PRIORITY 1
 #define CONSUME_PRIORITY 2
 #define NAVIGATE_PRIORITY 3
 #define SPEED 500
@@ -84,6 +84,8 @@ CIri2Controller::CIri2Controller (const char* pch_name, CEpuck* pc_epuck, int n_
 
 	changeAngle = 0.3;
 	divider = 1;
+
+	hasLightTurnedOff = false;
 
 	consumeInhibitor = 1.0;
 
@@ -254,6 +256,8 @@ void CIri2Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 	/* Execute Coordinator */
 	Coordinator();
 
+	Unload();
+
 	/* Set Speed to wheels */
 	m_acWheels->SetSpeed(m_fLeftSpeed, m_fRightSpeed);	
 
@@ -286,8 +290,9 @@ void CIri2Controller::ExecuteBehaviors ( void )
 	
 	ObstacleAvoidance ( AVOID_PRIORITY );
 	Navigate ( NAVIGATE_PRIORITY );
+	AvoidBlue( AVOID_BLUE_PRIORITY );
 	Consume ( CONSUME_PRIORITY );
-	Unload( UNLOAD_PRIORITY );
+	
 }
 
 
@@ -374,9 +379,6 @@ void CIri2Controller::ObstacleAvoidance ( unsigned int un_priority )
 	/* If above a threshold */
 	if ( fMaxProx > PROXIMITY_THRESHOLD )
 	{
-
-		divider = 1;
-		changeAngle = 0.4;
 		/* Set Leds to GREEN */
 		m_pcEpuck->SetAllColoredLeds(	LED_COLOR_GREEN);
     /* Mark Behavior as active */
@@ -427,33 +429,34 @@ void CIri2Controller::Consume ( unsigned int un_priority )
 {
 	double* bluelight = m_seBlueLight->GetSensorReading(m_pcEpuck);
 	m_seBlueLight = (CRealBlueLightSensor*) m_pcEpuck->GetSensor(SENSOR_REAL_BLUE_LIGHT);
-	double* bluebattery = m_seBlueBattery->GetSensorReading(m_pcEpuck);
+
+	
 
 	if (consumeInhibitor == 1.0){
 
-		if (bluelight[2]+bluelight[3] > bluelight[0]+bluelight[7]){
-			changeAngle = -0.5;
+		hasLightTurnedOff = false;
+
+		if (bluelight[2]+bluelight[1] > bluelight[0]+bluelight[7]){
+			changeAngle = 0.8;
 		}
-		else if (bluelight[4]+bluelight[5] > bluelight[0]+bluelight[7]){
-			changeAngle = 0.5;
+		else if (bluelight[6]+bluelight[5] > bluelight[0]+bluelight[7]){
+			changeAngle = -0.8;
 		}
 		else {
 			if ( bluelight[0] > bluelight[7] ){
-				changeAngle = 0.4;
+				changeAngle = 0.6;
 			}
 			else {
-				changeAngle = -0.4;
+				changeAngle = -0.6;
 			}
 		}
 
-		if ( (bluelight[0]+bluelight[7]) > 1.4 ){
+		if ( (bluelight[0]+bluelight[7]) > 1.35 ){
 			// Si esta lo suficientemente cerca apaga la luz
 			canConsume = true;
-			m_seBlueLight -> SwitchNearestLight(0);
-			if (bluebattery[0] == 1.0){
-				consumeInhibitor = 0.0;
-			}
 
+			m_seBlueLight -> SwitchNearestLight(0);
+			hasLightTurnedOff = true;			
 		}
 		if ( bluelight[0]+bluelight[1]+bluelight[2]+bluelight[3]+bluelight[4]+bluelight[5]+bluelight[6]+bluelight[7] == 0 ){
 			changeAngle = 0.0;
@@ -461,6 +464,8 @@ void CIri2Controller::Consume ( unsigned int un_priority )
 		if (changeAngle != 0){
 			m_pcEpuck->SetAllColoredLeds(	LED_COLOR_BLUE);
 		}
+	}else {
+		changeAngle = 0.0;
 	}
 	m_fActivationTable[un_priority][0] = changeAngle;
 	m_fActivationTable[un_priority][1] = 0.5;
@@ -471,6 +476,7 @@ void CIri2Controller::Consume ( unsigned int un_priority )
 	printf("changeAngle => %2.4f\n",m_fActivationTable[un_priority][0]);
 	printf("consumeInhibitor => %2.4f\n", consumeInhibitor);
 	printf("canConsume => %d\n", canConsume);
+	printf("hasLightTurnedOff => %d\n", hasLightTurnedOff);
 
 	if (m_nWriteToFile ) 
 	{
@@ -484,29 +490,45 @@ void CIri2Controller::Consume ( unsigned int un_priority )
 
 }
 
-void CIri2Controller::Unload ( unsigned int un_priority )
+void CIri2Controller::Unload ()
 {
-	double* bluelight = m_seBlueLight->GetSensorReading(m_pcEpuck);
-	m_seBlueLight = (CRealBlueLightSensor*) m_pcEpuck->GetSensor(SENSOR_REAL_BLUE_LIGHT);
 	double* ground = m_seGround->GetSensorReading(m_pcEpuck);
-	double* bluebattery = m_seBlueBattery->GetSensorReading(m_pcEpuck);
-
-	if (consumeInhibitor == 0.0)
-	{
-		m_pcEpuck->SetAllColoredLeds(	LED_COLOR_YELLOW);
-
-		if ( bluelight[0]+bluelight[1]+bluelight[2]+bluelight[3]+bluelight[4]+bluelight[5]+bluelight[6]+bluelight[7] == 0 ){
-			changeAngle = 0.0;
-		}
-
-		/* TODO: AQUI EL ROBOT DEBE EVITAR LAS LUCES AZULES */
-	}
 
 	if ((ground[0]== 0.5) && (ground[1] == 0.5) && (ground[2]== 0.5)){ // Si los tres sensores ground estan a cero descarga la bateria
 		canUnload = true;
 		consumeInhibitor = 1.0;
 	}
 
+}
+
+void CIri2Controller::AvoidBlue( unsigned int un_priority )
+{
+	double* bluelight = m_seBlueLight->GetSensorReading(m_pcEpuck);
+	m_seBlueLight = (CRealBlueLightSensor*) m_pcEpuck->GetSensor(SENSOR_REAL_BLUE_LIGHT);
+	double* ground = m_seGround->GetSensorReading(m_pcEpuck);
+	double* bluebattery = m_seBlueBattery->GetSensorReading(m_pcEpuck);
+
+	if (bluebattery[0] == 1.0 && hasLightTurnedOff)
+	{
+		m_pcEpuck->SetAllColoredLeds(	LED_COLOR_YELLOW);
+		consumeInhibitor = 0.0;
+
+		if ( bluelight[0]+bluelight[1]+bluelight[2]+bluelight[3]+bluelight[4]+bluelight[5]+bluelight[6]+bluelight[7] == 0 ){
+			changeAngle = 0.0;
+		}
+
+		else if ((bluelight[0] + bluelight[7])/2 > bluelight[1]){
+			changeAngle = 0.7;
+		}
+		else if ((bluelight[0] + bluelight[7])/2 > bluelight[6]){
+			changeAngle = -0.7;
+		}
+
+		/* TODO: AQUI EL ROBOT DEBE EVITAR LAS LUCES AZULES */
+	}
+	else {
+		changeAngle = 0;
+	}
 	m_fActivationTable[un_priority][0] = changeAngle;
 	m_fActivationTable[un_priority][1] = 0.5;
 	m_fActivationTable[un_priority][2] = 1.0;

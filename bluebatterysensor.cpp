@@ -46,11 +46,8 @@ double* CBlueBatterySensor::ComputeSensorReadings(CEpuck* pc_epuck, CSimulator* 
 	
 	if ( pcArena->GetNearestBlueLight(vPosition, m_fRange , &vLightPosition, &fDistance))
 	{
-		extern bool canConsume;
-		extern bool canUnload; // Variable global que sirve para que blueBattery solo aumente 0.25 por cada luz consumida 
-		if (canConsume)
-		{
-			/* code */
+		extern bool canConsume; // Variable global que sirve para que blueBattery solo aumente 0.25 por cada luz consumida 
+		if (canConsume){
 			m_fBatteryLevel += m_fChargeCoef; //* ( 1 - pow ( m_fBatteryLevel , 2 ));
 			canConsume = false;
 		}
@@ -60,8 +57,8 @@ double* CBlueBatterySensor::ComputeSensorReadings(CEpuck* pc_epuck, CSimulator* 
 		/* discharge battery */
 		extern bool canUnload;
 		if (canUnload){
-		m_fBatteryLevel -= m_fDischargeCoef;
-		canUnload = false;
+			m_fBatteryLevel -= m_fDischargeCoef;
+			canUnload = false;
 		}	
 	}
 

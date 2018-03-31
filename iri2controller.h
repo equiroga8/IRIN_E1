@@ -41,6 +41,7 @@ private:
 	double 		m_fRightSpeed;
 	double**	m_fActivationTable;
 	int 		m_nWriteToFile;
+	bool 		hasLightTurnedOff;
 	double 		m_fTime;
 	double		changeAngle;
 	double 		divider;
@@ -53,7 +54,8 @@ private:
 	void Consume (unsigned int un_priority);
 	void ObstacleAvoidance ( unsigned int un_priority );
 	void Navigate ( unsigned int un_priority );
-	void Unload (unsigned int un_priority );
+	void Unload ();
+	void AvoidBlue( unsigned int un_priority );
 };
 
 #endif
