@@ -37,11 +37,12 @@ extern bool canUnload = false;
 
 using namespace std;
 
-#define BEHAVIORS 4
+#define BEHAVIORS 5
 #define AVOID_PRIORITY 0
 #define AVOID_BLUE_PRIORITY 1
 #define CONSUME_PRIORITY 2
 #define NAVIGATE_PRIORITY 3
+#define RECHARGE_PRIORITY 4
 #define SPEED 500
 
 #define PROXIMITY_THRESHOLD 0.3
@@ -286,12 +287,14 @@ void CIri2Controller::ExecuteBehaviors ( void )
 	
 
 	/* Set Leds to BLACK */
-	m_pcEpuck->SetAllColoredLeds(	LED_COLOR_BLACK);
+	m_pcEpuck->SetAllColoredLeds(LED_COLOR_BLACK);
 	
 	ObstacleAvoidance ( AVOID_PRIORITY );
 	Navigate ( NAVIGATE_PRIORITY );
 	AvoidBlue( AVOID_BLUE_PRIORITY );
 	Consume ( CONSUME_PRIORITY );
+	Recharge ( RECHARGE_PRIORITY);
+
 	
 }
 
@@ -299,39 +302,36 @@ void CIri2Controller::ExecuteBehaviors ( void )
 void CIri2Controller::Coordinator ( void )
 {
 	int nBehavior;
-  double fAngle = 0.0;
+  	double fAngle = 0.0;
 
-  int nActiveBehaviors = 0;
-  /* For every Behavior Activated, sum angles */
-	for ( nBehavior = 0 ; nBehavior < BEHAVIORS ; nBehavior++ )
-	{
-		if ( m_fActivationTable[nBehavior][2] == 1.0 )
-		{
-      fAngle += m_fActivationTable[nBehavior][0];
-      nActiveBehaviors++;
+  	int nActiveBehaviors = 0;
+  	/* For every Behavior Activated, sum angles */
+	for ( nBehavior = 0 ; nBehavior < BEHAVIORS ; nBehavior++ ) {
+		if ( m_fActivationTable[nBehavior][2] == 1.0 ) {
+      		fAngle += m_fActivationTable[nBehavior][0];
+      		nActiveBehaviors++;
 		}
 	}
-  fAngle /= (double) nActiveBehaviors;
+  	fAngle /= (double) nActiveBehaviors;
 	
-  /* Normalize fAngle */
-  while ( fAngle > M_PI ) fAngle -= 2 * M_PI;
+  	/* Normalize fAngle */
+  	while ( fAngle > M_PI ) fAngle -= 2 * M_PI;
 	while ( fAngle < -M_PI ) fAngle += 2 * M_PI;
  
-  /* Based on the angle, calc wheels movements */
-  double fCLinear = 1.0;
-  double fCAngular = 1.0;
-  double fC1 = SPEED / M_PI;
+  	/* Based on the angle, calc wheels movements */
+  	double fCLinear = 1.0;
+  	double fCAngular = 1.0;
+  	double fC1 = SPEED / M_PI;
 
-  /* Calc Linear Speed */
-  double fVLinear = SPEED * fCLinear * ( cos ( fAngle / 2) );
+  	/* Calc Linear Speed */
+  	double fVLinear = SPEED * fCLinear * ( cos ( fAngle / 2) );
 
-  /*Calc Angular Speed */
-  double fVAngular = fAngle;
+  	/*Calc Angular Speed */
+  	double fVAngular = fAngle;
 
-  m_fLeftSpeed  = fVLinear - fC1 * fVAngular;
-  m_fRightSpeed = fVLinear + fC1 * fVAngular;
-	if (m_nWriteToFile ) 
-	{
+  	m_fLeftSpeed  = fVLinear - fC1 * fVAngular;
+  	m_fRightSpeed = fVLinear + fC1 * fVAngular;
+	if (m_nWriteToFile ) {
 		/* INIT: WRITE TO FILES */
 		/* Write coordinator ouputs */
 		FILE* fileOutput = fopen("outputFiles/coordinatorOutput", "a");
@@ -373,16 +373,16 @@ void CIri2Controller::ObstacleAvoidance ( unsigned int un_priority )
 	while ( fRepelent > M_PI ) fRepelent -= 2 * M_PI;
 	while ( fRepelent < -M_PI ) fRepelent += 2 * M_PI;
 
-  m_fActivationTable[un_priority][0] = fRepelent;
-  m_fActivationTable[un_priority][1] = fMaxProx;
+  	m_fActivationTable[un_priority][0] = fRepelent;
+  	m_fActivationTable[un_priority][1] = fMaxProx;
 
 	/* If above a threshold */
 	if ( fMaxProx > PROXIMITY_THRESHOLD )
 	{
 		/* Set Leds to GREEN */
 		m_pcEpuck->SetAllColoredLeds(	LED_COLOR_GREEN);
-    /* Mark Behavior as active */
-    m_fActivationTable[un_priority][2] = 1.0;
+    	/* Mark Behavior as active */
+    	m_fActivationTable[un_priority][2] = 1.0;
 	}
 	
 	if (m_nWriteToFile ) 
@@ -430,8 +430,6 @@ void CIri2Controller::Consume ( unsigned int un_priority )
 	double* bluelight = m_seBlueLight->GetSensorReading(m_pcEpuck);
 	m_seBlueLight = (CRealBlueLightSensor*) m_pcEpuck->GetSensor(SENSOR_REAL_BLUE_LIGHT);
 
-	
-
 	if (consumeInhibitor == 1.0){
 
 		hasLightTurnedOff = false;
@@ -462,7 +460,7 @@ void CIri2Controller::Consume ( unsigned int un_priority )
 			changeAngle = 0.0;
 		}
 		if (changeAngle != 0){
-			m_pcEpuck->SetAllColoredLeds(	LED_COLOR_BLUE);
+			m_pcEpuck->SetAllColoredLeds(LED_COLOR_BLUE);
 		}
 	}else {
 		changeAngle = 0.0;
@@ -510,7 +508,7 @@ void CIri2Controller::AvoidBlue( unsigned int un_priority )
 
 	if (bluebattery[0] == 1.0 && hasLightTurnedOff)
 	{
-		m_pcEpuck->SetAllColoredLeds(	LED_COLOR_YELLOW);
+		m_pcEpuck->SetAllColoredLeds(LED_COLOR_YELLOW);
 		consumeInhibitor = 0.0;
 
 		if ( bluelight[0]+bluelight[1]+bluelight[2]+bluelight[3]+bluelight[4]+bluelight[5]+bluelight[6]+bluelight[7] == 0 ){
@@ -534,6 +532,59 @@ void CIri2Controller::AvoidBlue( unsigned int un_priority )
 	m_fActivationTable[un_priority][2] = 1.0;
 
 	
+
+	if (m_nWriteToFile ) 
+	{
+		/* INIT: WRITE TO FILES */
+		/* Write level of competence ouputs */
+		FILE* fileOutput = fopen("outputFiles/navigateOutput", "a");
+		fprintf(fileOutput,"%2.4f %2.4f %2.4f %2.4f \n", m_fTime, m_fActivationTable[un_priority][2], m_fActivationTable[un_priority][0], m_fActivationTable[un_priority][1]);
+		fclose(fileOutput);
+		/* END WRITE TO FILES */
+	}
+
+}
+
+void CIri2Controller::Recharge ( unsigned int un_priority)
+{
+	double* redlight = m_seRedLight->GetSensorReading(m_pcEpuck);
+	m_seRedLight = (CRealRedLightSensor*) m_pcEpuck->GetSensor(SENSOR_REAL_RED_LIGHT);
+	double* redbattery = m_seRedBattery->GetSensorReading(m_pcEpuck);
+
+
+	if (redbattery[0] < 0.3){
+		if (redlight[2]+redlight[1] > redlight[0]+redlight[7]){
+			changeAngle = 0.8;
+		} else if (redlight[6]+redlight[5] > redlight[0]+redlight[7]){
+			changeAngle = -0.8;
+		} else {
+			if ( redlight[0] > redlight[7] ){
+				changeAngle = 0.6;
+			} else {
+				changeAngle = -0.6;
+			}
+		} 
+	
+		if ( redlight[0]+redlight[1]+redlight[2]+redlight[3]+redlight[4]+redlight[5]+redlight[6]+redlight[7] == 0 ){
+			changeAngle = 0.0;
+		}
+	
+		if (changeAngle != 0){
+			m_pcEpuck->SetAllColoredLeds(LED_COLOR_RED);
+		}
+	} else if (redbattery[0] == 0){
+		//en esta linea se tiene que parar el robot
+	} else {
+		changeAngle = 0.0;
+	}
+
+
+	m_fActivationTable[un_priority][0] = changeAngle;
+	m_fActivationTable[un_priority][1] = 0.5;
+	m_fActivationTable[un_priority][2] = 1.0;
+
+	
+	printf("changeAngleROJO => %2.4f\n",m_fActivationTable[un_priority][0]);
 
 	if (m_nWriteToFile ) 
 	{

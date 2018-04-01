@@ -56,6 +56,7 @@ private:
 	void Navigate ( unsigned int un_priority );
 	void Unload ();
 	void AvoidBlue( unsigned int un_priority );
+	void Recharge (unsigned int un_priority);
 };
 
 #endif
