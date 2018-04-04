@@ -6,6 +6,8 @@
 #include <gsl/gsl_randist.h>
 #include <sys/time.h>
 #include <iostream>
+#include <math.h>
+#include <cmath>
 #include <cstdlib>
 #include <ctime>
 
@@ -46,6 +48,7 @@ using namespace std;
 #define SPEED 500
 
 #define PROXIMITY_THRESHOLD 0.3
+#define ERROR_DIRECTION 0.05
 
 CIri2Controller::CIri2Controller (const char* pch_name, CEpuck* pc_epuck, int n_write_to_file) : CController (pch_name, pc_epuck)
 
@@ -83,7 +86,7 @@ CIri2Controller::CIri2Controller (const char* pch_name, CEpuck* pc_epuck, int n_
 	/* Set compass Sensor */
 	m_seCompass = (CCompassSensor*) m_pcEpuck->GetSensor (SENSOR_COMPASS);
 
-	changeAngle = 0.3;
+	changeAngle = 0.0;
 	divider = 1;
 
 	hasLightTurnedOff = false;
@@ -301,38 +304,79 @@ void CIri2Controller::ExecuteBehaviors ( void )
 
 void CIri2Controller::Coordinator ( void )
 {
+	/* Create counter for behaviors */ 
 	int nBehavior;
+	/* Create angle of movement */
   	double fAngle = 0.0;
 
-  	int nActiveBehaviors = 0;
-  	/* For every Behavior Activated, sum angles */
+  	/* Create vector of movement */
+  	dVector2  vAngle;
+  	vAngle.x = 0.0;
+  	vAngle.y = 0.0;
+
+  	//int nActiveBehaviors = 0;
+
+  	/* For every Behavior */
+	for ( nBehavior = 0 ; nBehavior < BEHAVIORS ; nBehavior++ )
+	{
+    /* If behavior is active */
+		if ( m_fActivationTable[nBehavior][2] == 1.0 )
+		{
+      		/* DEBUG */
+      		printf("Behavior %d: %2f\n", nBehavior, m_fActivationTable[nBehavior][0]);
+      		/* DEBUG */
+      		//vAngle.x += m_fActivationTable[nBehavior][1] * cos(m_fActivationTable[nBehavior][0]);
+      		//vAngle.y += m_fActivationTable[nBehavior][1] * sin(m_fActivationTable[nBehavior][0]);
+      		fAngle += m_fActivationTable[nBehavior][0] * m_fActivationTable[nBehavior][1];
+		}
+
+	}
+	printf("vAngle.x = %2.4f, vAngle.y = %2.4f\n",vAngle.x, vAngle.y);
+
+	/*double theta = atan(abs(vAngle.y / vAngle.x));
+	if ((vAngle.x > 0) && (vAngle.y > 0)) fAngle = theta;
+	if ((vAngle.x < 0) && (vAngle.y > 0)) fAngle = M_PI - theta;
+	if ((vAngle.x < 0) && (vAngle.y < 0)) fAngle = M_PI + theta;
+	if ((vAngle.x > 0) && (vAngle.y < 0)) fAngle = 2*M_PI - theta;*/
+
+	while (fAngle > M_PI) fAngle -= 2*M_PI;
+	while (fAngle < -M_PI) fAngle += 2*M_PI;
+
+  	/*/* For every Behavior Activated, sum angles *
 	for ( nBehavior = 0 ; nBehavior < BEHAVIORS ; nBehavior++ ) {
 		if ( m_fActivationTable[nBehavior][2] == 1.0 ) {
       		fAngle += m_fActivationTable[nBehavior][0];
       		nActiveBehaviors++;
 		}
-	}
+	}*/
+
+	/* Calc angle of movement */
+  	//fAngle = atan2(vAngle.y, vAngle.x);
+
   	//fAngle /= (double) nActiveBehaviors;
 	
   	/* Normalize fAngle */
-  	while ( fAngle > M_PI ) fAngle -= 2 * M_PI;
-	while ( fAngle < -M_PI ) fAngle += 2 * M_PI;
+  	//while ( fAngle > M_PI ) fAngle -= 2 * M_PI;
+	//while ( fAngle < -M_PI ) fAngle += 2 * M_PI;
  
-  	// /* Based on the angle, calc wheels movements */
-  	// double fCLinear = 1.0;
-  	// double fCAngular = 1.0;
-  	// double fC1 = SPEED / M_PI;
+  	/* Based on the angle, calc wheels movements */
+  	//double fCLinear = 1.0;
+  	//double fCAngular = 1.0;
+  	//double fC1 = SPEED / M_PI;
 
-  	//  Calc Linear Speed 
-  	// double fVLinear = SPEED * fCLinear * ( cos ( fAngle / 2) );
+  	/* Calc Linear Speed */
+  	//double fVLinear = SPEED * fCLinear * ( cos ( fAngle / 2) );
 
-  	// /*Calc Angular Speed */
-  	// double fVAngular = fAngle;
+  	/*Calc Angular Speed */
+  	//double fVAngular = fAngle;
 
   	//m_fLeftSpeed  = fVLinear - fC1 * fVAngular;
   	//m_fRightSpeed = fVLinear + fC1 * fVAngular;
-  	printf("-----fAngle------- =============== %2.4f\n",fAngle );
 
+  	/* DEBUG */
+  	printf("fAngle: %2f\n", fAngle);
+  	printf("\n");
+	  
 	if (fAngle > 0) {
 		m_fLeftSpeed = SPEED*((M_PI - fAngle) / M_PI);
 	    m_fRightSpeed = SPEED;
@@ -370,7 +414,6 @@ void CIri2Controller::ObstacleAvoidance ( unsigned int un_priority )
 	{
 		vRepelent.x += prox[i] * cos ( proxDirections[i] );
 		vRepelent.y += prox[i] * sin ( proxDirections[i] );
-
 		if ( prox[i] > fMaxProx )
 			fMaxProx = prox[i];
 	}
@@ -389,6 +432,8 @@ void CIri2Controller::ObstacleAvoidance ( unsigned int un_priority )
 	/* If above a threshold */
 	if ( fMaxProx > PROXIMITY_THRESHOLD )
 	{
+		printf("AVOID_PRIORITY\n");
+		printf("fRepelent = %2.4f\n", fRepelent);
 		/* Set Leds to GREEN */
 		m_pcEpuck->SetAllColoredLeds(	LED_COLOR_GREEN);
     	/* Mark Behavior as active */
@@ -405,6 +450,7 @@ void CIri2Controller::ObstacleAvoidance ( unsigned int un_priority )
 		fclose(fileOutput);
 		/* END WRITE TO FILE */
 	}
+
 	
 }
 
@@ -418,10 +464,10 @@ void CIri2Controller::Navigate ( unsigned int un_priority )
 	divider += 0.001;
 
 	m_fActivationTable[un_priority][0] = 0.0;
-	m_fActivationTable[un_priority][1] = 0.5;
+	m_fActivationTable[un_priority][1] = 0.1;
 	m_fActivationTable[un_priority][2] = 1.0;
 
-	printf("changeAngle => %2.4f\n",m_fActivationTable[un_priority][0]);
+	printf("changeAngle(Navigate) => %2.4f\n",m_fActivationTable[un_priority][0]);
 	printf("Random  number: %i\n",r);
 	if (m_nWriteToFile ) 
 	{
@@ -440,17 +486,9 @@ void CIri2Controller::Consume ( unsigned int un_priority )
 	double* bluelight = m_seBlueLight->GetSensorReading(m_pcEpuck);
 	m_seBlueLight = (CRealBlueLightSensor*) m_pcEpuck->GetSensor(SENSOR_REAL_BLUE_LIGHT);
 
-	double fMaxLight = 0.0;
-	const double* blueLightDirections = m_seBlueLight->GetSensorDirections();
-
-  	/* We call vRepelent to go similar to Obstacle Avoidance, although it is an aproaching vector */
-	dVector2 vRepelent;
-	vRepelent.x = 0.0;
-	vRepelent.y = 0.0;
-
 	if (consumeInhibitor == 1.0){
 
-		// hasLightTurnedOff = false;
+		hasLightTurnedOff = false;
 
 		// if (bluelight[2]+bluelight[1] > bluelight[0]+bluelight[7]){
 		// 	changeAngle = 0.8;
@@ -467,7 +505,7 @@ void CIri2Controller::Consume ( unsigned int un_priority )
 		// 	}
 		// }
 
-		// if ( (bluelight[0]+bluelight[7]) > 1.35 ){
+		// if ((bluelight[0]+bluelight[7]) > 1.35 ){
 		// 	// Si esta lo suficientemente cerca apaga la luz
 		// 	canConsume = true;
 
@@ -477,52 +515,47 @@ void CIri2Controller::Consume ( unsigned int un_priority )
 		// if ( bluelight[0]+bluelight[1]+bluelight[2]+bluelight[3]+bluelight[4]+bluelight[5]+bluelight[6]+bluelight[7] == 0 ){
 		// 	changeAngle = 0.0;
 		// }
-		// if (changeAngle != 0){
-		// 	m_pcEpuck->SetAllColoredLeds(LED_COLOR_BLUE);
-		// }
-		/* Leer Sensores de Suelo Memory */
 
+
+		const double* blueLightDirections = m_seBlueLight->GetSensorDirections();
+
+		dVector2 vRepelent;
+		vRepelent.x = 0.0;
+		vRepelent.y = 0.0;
+
+		/* Calc vector Sum */
+		for ( int i = 0 ; i < m_seBlueLight->GetNumberOfInputs() ; i++ )
+		{
+			if (i == 0 ||i == 1 || i == 6 || i == 7){
+				vRepelent.x += bluelight[i] * cos ( blueLightDirections[i] );
+				vRepelent.y += bluelight[i] * sin ( blueLightDirections[i] );
+			}
+		}
 	
-
-	/* Calc vector Sum */
-	for ( int i = 0 ; i < m_seBlueLight->GetNumberOfInputs() ; i ++ )
-	{
-		vRepelent.x += bluelight[i] * cos ( blueLightDirections[i] );
-		vRepelent.y += bluelight[i] * sin ( blueLightDirections[i] );
-		printf("blueLightDirections = %2.4f\n", blueLightDirections[i]);
-		if ( bluelight[i] > fMaxLight )
-			fMaxLight = bluelight[i];
-	}
+		/* Calc pointing angle */
+		float fRepelent = -atan2(vRepelent.y, vRepelent.x);
 	
-	/* Calc pointing angle */
-	float fRepelent = atan2(vRepelent.y, vRepelent.x);
-		
-  	/* Normalize angle */
-	while ( fRepelent > M_PI ) fRepelent -= 2 * M_PI;
-	while ( fRepelent < -M_PI ) fRepelent += 2 * M_PI;
+		/* Normalize angle */
+		while ( fRepelent > M_PI ) fRepelent -= 2 * M_PI;
+		while ( fRepelent < -M_PI ) fRepelent += 2 * M_PI;
 
-  	m_fActivationTable[un_priority][0] = fRepelent;
-  	m_fActivationTable[un_priority][1] = fMaxLight;
-  	m_fActivationTable[un_priority][2] = 1.0;
+  		m_fActivationTable[un_priority][0] = fRepelent;
+  		m_fActivationTable[un_priority][1] = 0.5;
+  		m_fActivationTable[un_priority][2] = 1.0;
 
- 
-  	if ( (bluelight[0]+bluelight[7]) > 1.35 ){
-		//Si esta lo suficientemente cerca apaga la luz
-		canConsume = true;
+		if (fRepelent != 0){
+			printf("CONSUME_PRIORITY\n");
+			m_pcEpuck->SetAllColoredLeds(LED_COLOR_BLUE);
+		}
+		if ((bluelight[0]+bluelight[7]) > 1.35 ){
+		 	//Si esta lo suficientemente cerca apaga la luz
+			canConsume = true;
 
-		m_seBlueLight -> SwitchNearestLight(0);
-		hasLightTurnedOff = true;			
+			m_seBlueLight -> SwitchNearestLight(0);
+			hasLightTurnedOff = true;			
+		}
 	}
-	if (fRepelent != 0){
-		m_pcEpuck->SetAllColoredLeds(LED_COLOR_BLUE);
-	}
-	printf("fRepelent = %2.4f\n", fRepelent);
-
-	}
-
-
-
-	
+	printf("Suma = %2.4f---------------------------------\n", bluelight[0]+bluelight[7] );
 
 	printf("changeAngle => %2.4f\n",m_fActivationTable[un_priority][0]);
 	printf("consumeInhibitor => %2.4f\n", consumeInhibitor);
@@ -559,8 +592,9 @@ void CIri2Controller::AvoidBlue( unsigned int un_priority )
 	double* ground = m_seGround->GetSensorReading(m_pcEpuck);
 	double* bluebattery = m_seBlueBattery->GetSensorReading(m_pcEpuck);
 
-	if (bluebattery[0] == 1.0 && hasLightTurnedOff)
+	if (bluebattery[0] == 1.0 && hasLightTurnedOff) //falta exhibir
 	{
+		printf("AVOIDBLUE_PRIORITY\n");
 		m_pcEpuck->SetAllColoredLeds(LED_COLOR_YELLOW);
 		consumeInhibitor = 0.0;
 
@@ -604,7 +638,6 @@ void CIri2Controller::Recharge ( unsigned int un_priority)
 	m_seRedLight = (CRealRedLightSensor*) m_pcEpuck->GetSensor(SENSOR_REAL_RED_LIGHT);
 	double* redbattery = m_seRedBattery->GetSensorReading(m_pcEpuck);
 
-
 	if (redbattery[0] < 0.3){
 		if (redlight[2]+redlight[1] > redlight[0]+redlight[7]){
 			changeAngle = 0.8;
@@ -623,11 +656,12 @@ void CIri2Controller::Recharge ( unsigned int un_priority)
 		}
 	
 		if (changeAngle != 0){
+			printf("RECHARGE_PRIORITY\n");
 			m_pcEpuck->SetAllColoredLeds(LED_COLOR_RED);
 		}
-	} else if (redbattery[0] == 0){
+	} /*else if (redbattery[0] == 0){
 		//en esta linea se tiene que parar el robot
-	} else {
+	} */else {
 		changeAngle = 0.0;
 	}
 
