@@ -43,9 +43,10 @@ private:
 	int 		m_nWriteToFile;
 	bool 		hasLightTurnedOff;
 	double 		m_fTime;
-	double		changeAngle;
-	double 		divider;
+	double		avoidInhibitor;
 	double		consumeInhibitor;
+	double		avoidBlueExhibitor;
+	int 		counter;
 
 	/* Functions */
 
@@ -57,6 +58,7 @@ private:
 	void Unload ();
 	void AvoidBlue( unsigned int un_priority );
 	void Recharge (unsigned int un_priority);
+	void BacteriaAppears();
 };
 
 #endif
