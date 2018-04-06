@@ -30,6 +30,7 @@
 /******************** Controller **************/
 #include "iri2controller.h"
 
+bool sunIsOn;
 extern gsl_rng* rng;
 extern long int rngSeed;
 extern bool canConsume = true; // Variable global que sirve para que blueBattery solo aumente 0.25 por cada luz consumida 
@@ -44,7 +45,8 @@ using namespace std;
 #define CONSUME_PRIORITY 2
 #define NAVIGATE_PRIORITY 3
 #define RECHARGE_PRIORITY 4
-#define SPEED 500
+#define DAY_SPEED 600
+#define NIGHT_SPEED 300
 
 #define PROXIMITY_THRESHOLD 0.3
 
@@ -270,6 +272,8 @@ void CIri2Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 
 	BacteriaAppears();
 
+	DayOrNight();
+
 	/* Set Speed to wheels */
 	m_acWheels->SetSpeed(m_fLeftSpeed, m_fRightSpeed);	
 	
@@ -343,15 +347,28 @@ void CIri2Controller::Coordinator ( void )
 	while ( fAngle < -M_PI ) fAngle += 2 * M_PI;
 
 
-	printf("-----fAngle------- %2.4f\n",fAngle );
+	//printf("-----fAngle------- %2.4f\n",fAngle );
 
-	if (fAngle > 0) {
-		m_fLeftSpeed = SPEED*((M_PI - fAngle) / M_PI);
-		m_fRightSpeed = SPEED;
+
+	if (sunIsOn){
+
+		if (fAngle > 0) {
+			m_fLeftSpeed = DAY_SPEED*((M_PI - fAngle) / M_PI);
+			m_fRightSpeed = DAY_SPEED;
+		} else {
+			m_fLeftSpeed = DAY_SPEED;
+			m_fRightSpeed = DAY_SPEED*((M_PI + fAngle) / M_PI);
+		}
 	} else {
-		m_fLeftSpeed = SPEED;
-		m_fRightSpeed = SPEED*((M_PI + fAngle) / M_PI);
+		if (fAngle > 0) {
+			m_fLeftSpeed = NIGHT_SPEED*((M_PI - fAngle) / M_PI);
+			m_fRightSpeed = NIGHT_SPEED;
+		} else {
+			m_fLeftSpeed = NIGHT_SPEED;
+			m_fRightSpeed = NIGHT_SPEED*((M_PI + fAngle) / M_PI);
+		}
 	}
+	
 
 	if (m_nWriteToFile ) {
 		/* INIT: WRITE TO FILES */
@@ -413,7 +430,7 @@ void CIri2Controller::ObstacleAvoidance ( unsigned int un_priority )
 
 	m_fActivationTable[un_priority][0] = fRepelent;
 	m_fActivationTable[un_priority][1] = fMaxProx;
-	printf("AVOID_fRepelent = %2.4f\n", fRepelent);
+	//printf("AVOID_fRepelent = %2.4f\n", fRepelent);
 	
 	if (m_nWriteToFile ) 
 	{
@@ -499,7 +516,7 @@ void CIri2Controller::Consume ( unsigned int un_priority )
 		if (fRepelent != 0){
 			m_pcEpuck->SetAllColoredLeds(LED_COLOR_BLUE);
 		}
-		printf("CONSUME_fRepelent = %2.4f\n", fRepelent);
+		//printf("CONSUME_fRepelent = %2.4f\n", fRepelent);
 
 	}
 
@@ -564,7 +581,7 @@ void CIri2Controller::AvoidBlue( unsigned int un_priority )
 		m_fActivationTable[un_priority][0] = fRepelent;
 		m_fActivationTable[un_priority][1] = 1.0;
 		
-		printf("changeAngleAVOIDBLUE => %2.4f\n",m_fActivationTable[un_priority][0]);
+		//printf("changeAngleAVOIDBLUE => %2.4f\n",m_fActivationTable[un_priority][0]);
 
 	}
 
@@ -588,17 +605,16 @@ void CIri2Controller::Recharge ( unsigned int un_priority)
 	double* redbattery = m_seRedBattery->GetSensorReading(m_pcEpuck);
 	const double* redLightDirections = m_seRedLight->GetSensorDirections();
 	
-	
-	
 	dVector2 vRepelent;
 	vRepelent.x = 0.0;
 	vRepelent.y = 0.0;
 
 
+
 	avoidBlueExhibitor = 1.0;
 	float fRepelent = 0.0;
 
-	if (redbattery[0] < 0.3){
+	if (redbattery[0] < 0.6){
 		avoidBlueExhibitor = 0.0;
 	/* Calc vector Sum */
 		for ( int i = 0 ; i < m_seBlueLight->GetNumberOfInputs() ; i ++ )
@@ -640,9 +656,21 @@ void CIri2Controller::BacteriaAppears()
 {
 	m_seBlueLight = (CRealBlueLightSensor*) m_pcEpuck->GetSensor(SENSOR_REAL_BLUE_LIGHT);
 
-	printf("counter ===================== %i\n", counter );
+	printf("counter ===================== %i\n", counter % 751 );
 	if (counter % 751 == 0 ){ 
 		m_seBlueLight -> SwitchNearestLight(1);
 	}
 	counter++;
+}
+
+void CIri2Controller::DayOrNight ()
+{
+	double* light = m_seLight->GetSensorReading(m_pcEpuck);
+	m_seLight = (CRealLightSensor*) m_pcEpuck->GetSensor(SENSOR_REAL_LIGHT);
+
+	if (light[0]+light[1]+light[2]+light[3]+light[4]+light[5]+light[6]+light[7]+light[8] != 0) {
+		sunIsOn = true;
+	} else {
+		sunIsOn = false;
+	}
 }

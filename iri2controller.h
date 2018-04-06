@@ -59,6 +59,7 @@ private:
 	void AvoidBlue( unsigned int un_priority );
 	void Recharge (unsigned int un_priority);
 	void BacteriaAppears();
+	void DayOrNight();
 };
 
 #endif
