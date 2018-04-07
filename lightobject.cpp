@@ -134,9 +134,15 @@ int CLightObject::GetTiming ( unsigned int n_step_number )
 	/* Create sequence */
 	if ( !(n_step_number % 1000) )
   	{
+  		extern bool hasBacteriaAppeared;
+  		extern int dayCounter;
+  		
     	/* toggle light */
     	m_nActivation ^= 0x1;
+    	dayCounter++;
+    	hasBacteriaAppeared = false;
   	}
+
 
 	/* default return true */
 	return m_nActivation;

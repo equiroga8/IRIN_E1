@@ -41,10 +41,8 @@ extern gsl_rng* rng;
 extern long int rngSeed;
 extern bool canConsume = true; // Variable global que sirve para que blueBattery solo aumente 0.25 por cada luz consumida 
 extern bool canUnload = false;
-
-
-
-
+extern int dayCounter = 0;
+extern bool hasBacteriaAppeared = false;
 
 
 const int mapGridX          = 20;
@@ -563,11 +561,21 @@ void CIri2Controller::ObstacleAvoidance ( unsigned int un_priority )
 void CIri2Controller::Navigate ( unsigned int un_priority )
 {
 
+	double* light = m_seLight->GetSensorReading(m_pcEpuck);
+	m_seLight = (CRealLightSensor*) m_pcEpuck->GetSensor(SENSOR_REAL_LIGHT);
+
 	srand((int)time(0));
 	int r = rand() % 10;
 	
 	m_fActivationTable[un_priority][0] = 0.0;
 	m_fActivationTable[un_priority][1] = 0.5;
+
+
+	if (light[0]+light[1]+light[2]+light[3]+light[4]+light[5]+light[6]+light[7]+light[8] != 0) {
+		speed = 400;
+	} else {
+		speed = 600;
+	}
 
 	if (m_nWriteToFile ) 
 	{
@@ -661,17 +669,6 @@ void CIri2Controller::Unload ()
 
 }
 
-void CIri2Controller::DayOrNight ()
-{
-	double* light = m_seLight->GetSensorReading(m_pcEpuck);
-	m_seLight = (CRealLightSensor*) m_pcEpuck->GetSensor(SENSOR_REAL_LIGHT);
-
-	if (light[0]+light[1]+light[2]+light[3]+light[4]+light[5]+light[6]+light[7]+light[8] != 0) {
-		speed = 400;
-	} else {
-		speed = 600;
-	}
-}
 
 void CIri2Controller::AvoidBlue( unsigned int un_priority )
 {
@@ -786,10 +783,11 @@ void CIri2Controller::BacteriaAppears()
 {
 	m_seBlueLight = (CRealBlueLightSensor*) m_pcEpuck->GetSensor(SENSOR_REAL_BLUE_LIGHT);
 
-	if (counter % 2751 == 0 ){ 
+	if (dayCounter % 2 == 0 && !hasBacteriaAppeared) {
+		extern bool hasBacteriaAppeared;
 		m_seBlueLight -> SwitchNearestLight(1);
+		hasBacteriaAppeared = true;
 	}
-	counter++;
 }
 
 
