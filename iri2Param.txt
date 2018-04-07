@@ -14,15 +14,15 @@ RUN TIME							= 10000
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 NUMBER OF LIGHT OBJECTS  									= 1
-LIGHT 1: X POSITION											= -1
-LIGHT 1: Y POSITION											= 1
+LIGHT 1: X POSITION											= -1.45
+LIGHT 1: Y POSITION											= 1.45
 NUMBER OF BLUE LIGHT OBJECTS 								= 5
 BLUE LIGHT 1: X POSITION									= 1
 BLUE LIGHT 1: Y POSITION									= 0.5
 BLUE LIGHT 2: X POSITION									= -1
 BLUE LIGHT 2: Y POSITION									= 0.5
-BLUE LIGHT 3: X POSITION									= -0.5
-BLUE LIGHT 3: Y POSITION									= 1
+BLUE LIGHT 3: X POSITION									= -0.1
+BLUE LIGHT 3: Y POSITION									= 0.9
 BLUE LIGHT 4: X POSITION									= 1
 BLUE LIGHT 4: Y POSITION									= -0.5
 BLUE LIGHT 5: X POSITION									= -0.1
@@ -47,8 +47,8 @@ RED LIGHT 8: Y POSITION										= -0.99
 RED LIGHT 9: X POSITION										= 1.45
 RED LIGHT 9: Y POSITION										= -1.32
 NUMBER OF GROUND AREA 										= 1
-GROUND AREA 1 X POSITION									= -1.2
-GROUND AREA 1 Y POSITION									= -1.2
+GROUND AREA 1 X POSITION									= -0.8
+GROUND AREA 1 Y POSITION									= -0.85
 GROUND AREA 1 RADIUS										= 0.25
 GROUND AREA 1 COLOR (0.0 Black, 0.5 Grey)					= 0.5
 

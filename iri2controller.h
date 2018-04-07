@@ -17,6 +17,9 @@ public:
     CIri2Controller (const char* pch_name, CEpuck* pc_epuck, int n_write_to_file);
     ~CIri2Controller();
     void SimulationStep(unsigned n_step_number, double f_time, double f_step_interval);
+    void    PathPlanning            ( unsigned int un_priority );
+    string  pathFind                ( const int &xStart, const int &yStart, const int &xFinish, const int &yFinish );
+    void CalcPositionAndOrientation ( double *f_encoder );
 
 private:
     	CEpuck* m_pcEpuck;
@@ -48,18 +51,41 @@ private:
 	double		avoidBlueExhibitor;
 	int 		counter;
 
+	int       m_nState;
+	dVector2 *m_vPositionsPlanning;
+    int 	  m_nPathPlanningStops;
+    int       m_nRobotActualGridX;
+    int       m_nRobotActualGridY;
+
+    int       m_nPathPlanningDone;
+
+
+    int       m_nNestFound;
+    int       m_nNestGridX;
+    int       m_nNestGridY;
+
+
+    int 	speed;
+
 	/* Functions */
 
 	void ExecuteBehaviors ( void );
 	void Coordinator ( void );
+
 	void Consume (unsigned int un_priority);
 	void ObstacleAvoidance ( unsigned int un_priority );
 	void Navigate ( unsigned int un_priority );
-	void Unload ();
 	void AvoidBlue( unsigned int un_priority );
 	void Recharge (unsigned int un_priority);
+
+	void Unload ();
 	void BacteriaAppears();
 	void DayOrNight();
+
+
+	void ComputeActualCell  ( unsigned int un_priority );
+	void GoGoal             ( unsigned int un_priority );
+    void PrintMap ( int *print_map  );
 };
 
 #endif
