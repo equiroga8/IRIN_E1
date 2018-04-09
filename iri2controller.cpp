@@ -393,13 +393,9 @@ void CIri2Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 
 	/* Execute Coordinator */
 	Coordinator();
-
-	Unload();
-
-	BacteriaAppears();
-
+// ESTO HAY QUE QUITARLO
 	PrintMap(&onlineMap[0][0]);
-
+// HASTA AQUI
 
 	/* Set Speed to wheels */
 	m_acWheels->SetSpeed(m_fLeftSpeed, m_fRightSpeed);	
@@ -427,7 +423,10 @@ void CIri2Controller::ExecuteBehaviors ( void )
 
 	ComputeActualCell ( GO_UNLOAD_PRIORITY );
   	PathPlanning      ( GO_UNLOAD_PRIORITY );
-  	GoGoal            ( GO_UNLOAD_PRIORITY );
+  	GoToArtery        ( GO_UNLOAD_PRIORITY );
+
+  	Unload();
+	BacteriaAppears();
 
 
 	printf("consumeInhibitor: %2.4f\n", consumeInhibitor);
@@ -956,7 +955,7 @@ string CIri2Controller::pathFind( const int & xStart, const int & yStart,
 
 void CIri2Controller::PathPlanning ( unsigned int un_priority )
 {
-  /* Create Obstacle Map */
+  /* Create Obstacle Map */ /* DUDA */
 	for ( int y = 0 ; y < m ; y++ )
 	{
 		for ( int x = 0 ; x < n ; x++ )
@@ -1171,9 +1170,9 @@ void CIri2Controller::PrintMap ( int *print_map )
       else if(print_map[y*n+x]==3)
         cout<<"R"; //route
       else if(print_map[y*n+x]==4)
-        cout<<"F"; //finish
+        cout<<"E"; //finish
       else if(print_map[y*n+x]==5)
-        cout<<"N"; //finish
+        cout<<"A"; //finish
     }
     cout<<endl;
   }
@@ -1246,7 +1245,7 @@ void CIri2Controller::ComputeActualCell ( unsigned int un_priority )
 /******************************************************************************/
 /******************************************************************************/
 
-void CIri2Controller::GoGoal ( unsigned int un_priority )
+void CIri2Controller::GoToArtery ( unsigned int un_priority )
 {
 
 	double* redbattery = m_seRedBattery->GetSensorReading(m_pcEpuck);
@@ -1268,7 +1267,7 @@ void CIri2Controller::GoGoal ( unsigned int un_priority )
     /* DEBUG */
     printf("PlanningX: %2f, Actual: %2f\n", m_vPositionsPlanning[m_nState].x, m_vPosition.x );
     printf("PlanningY: %2f, Actual: %2f\n", m_vPositionsPlanning[m_nState].y, m_vPosition.y );
-    printf("m_nState: %i\n", m_nState)
+    printf("m_nState: %i\n", m_nState);
     /* DEBUG */
     
     double fX = (m_vPositionsPlanning[m_nState].x - m_vPosition.x);

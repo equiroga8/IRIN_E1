@@ -17,9 +17,7 @@ public:
     CIri2Controller (const char* pch_name, CEpuck* pc_epuck, int n_write_to_file);
     ~CIri2Controller();
     void SimulationStep(unsigned n_step_number, double f_time, double f_step_interval);
-    void    PathPlanning            ( unsigned int un_priority );
-    string  pathFind                ( const int &xStart, const int &yStart, const int &xFinish, const int &yFinish );
-    void CalcPositionAndOrientation ( double *f_encoder );
+    
 
 private:
     	CEpuck* m_pcEpuck;
@@ -85,7 +83,10 @@ private:
 
 
 	void ComputeActualCell  ( unsigned int un_priority );
-	void GoGoal             ( unsigned int un_priority );
+	void GoToArtery         ( unsigned int un_priority );
+	void    PathPlanning            ( unsigned int un_priority );
+    string  pathFind                ( const int &xStart, const int &yStart, const int &xFinish, const int &yFinish );
+    void CalcPositionAndOrientation ( double *f_encoder );
     void PrintMap ( int *print_map  );
 };
 
