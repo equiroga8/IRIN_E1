@@ -49,8 +49,8 @@ const int mapGridX          = 20;
 const int mapGridY          = 20;
 double    mapLengthX        = 3.0;
 double    mapLengthY        = 3.0;
-int       robotStartGridX   = 0; 
-int       robotStartGridY   = 0;
+int       robotStartGridX   = 10; 
+int       robotStartGridY   = 10;
 
 const   int n=mapGridX; // horizontal size of the map
 const   int m=mapGridY; // vertical size size of the map
@@ -64,7 +64,7 @@ static int dx[dir]={1, 1, 0, -1, -1, -1, 0, 1};
 static int dy[dir]={0, 1, 1, 1, 0, -1, -1, -1};
 
 #define ERROR_DIRECTION 0.05 
-#define ERROR_POSITION  0.02
+#define ERROR_POSITION  0.05
 
 using namespace std;
 
@@ -207,6 +207,7 @@ CIri2Controller::CIri2Controller (const char* pch_name, CEpuck* pc_epuck, int n_
 		{
 			for ( int x = 0 ; x < n ; x++ )
 			{
+				if((x == 16 && y == 6) || (x ==4 && y ==6 ) || (x == 9 && y == 4 ) || (x == 16 && y == 13 ) || (x == 9 && y == 14 ))
 				onlineMap[x][y]= OBSTACLE;
 			}
 	}
@@ -217,11 +218,13 @@ CIri2Controller::CIri2Controller (const char* pch_name, CEpuck* pc_epuck, int n_
 
 	// Contador para activar luces 
 	counter = 0;
+
+	hasBlack = false;
 	// Inhibidores y Exhibidores (No se llama Exhibidor)
 
-	avoidInhibitor = 1.0;
+	avoidSuppressor = 1.0;
 	consumeInhibitor = 1.0;
-	avoidBlueExhibitor = 1.0;
+	avoidBlueSuppressor = 1.0;
 
 	m_fActivationTable = new double* [BEHAVIORS];
 	for ( int i = 0 ; i < BEHAVIORS ; i++ )
@@ -430,8 +433,8 @@ void CIri2Controller::ExecuteBehaviors ( void )
 
 
 	printf("consumeInhibitor: %2.4f\n", consumeInhibitor);
-	printf("avoidInhibitor: %2.4f\n", avoidInhibitor);
-	printf("avoidBlueExhibitor: %2.4f\n", avoidBlueExhibitor);
+	printf("avoidSuppressor: %2.4f\n", avoidSuppressor);
+	printf("avoidBlueSuppressor: %2.4f\n", avoidBlueSuppressor);
 	printf("Nest Position [%i, %i]\n",m_nNestGridX, m_nNestGridY);
 	
 }
@@ -446,7 +449,7 @@ void CIri2Controller::Coordinator ( void )
 	vAngle.x = 0.0;
 	vAngle.y = 0.0;
 
-	if (avoidInhibitor == 0.0)
+	if (avoidSuppressor == 0.0)
 	{
 		for ( nBehavior = 1 ; nBehavior < BEHAVIORS ; nBehavior++ ) {
 
@@ -510,7 +513,7 @@ void CIri2Controller::ObstacleAvoidance ( unsigned int un_priority )
 	vRepelent.x = 0.0;
 	vRepelent.y = 0.0;
 
-	avoidInhibitor = 0.0;
+	avoidSuppressor = 0.0;
 
 	/* Calc vector Sum */
 	for ( int i = 0 ; i < m_seProx->GetNumberOfInputs() ; i ++ )
@@ -533,7 +536,7 @@ void CIri2Controller::ObstacleAvoidance ( unsigned int un_priority )
 	/* If above a threshold */
 	if ( fMaxProx > PROXIMITY_THRESHOLD )
 	{
-		avoidInhibitor = 1.0;
+		avoidSuppressor = 1.0;
 		
 		/* Set Leds to GREEN */
 		m_pcEpuck->SetAllColoredLeds(	LED_COLOR_GREEN);
@@ -626,7 +629,7 @@ void CIri2Controller::Consume ( unsigned int un_priority )
 
 		
 
-		if ( (bluelight[0]+bluelight[7]) > 1.35 ){
+		if ( (bluelight[0]+bluelight[1]+bluelight[2]+bluelight[3]+bluelight[4]+bluelight[5]+bluelight[6]+bluelight[7]) > 1.6 ){
 		//Si esta lo suficientemente cerca apaga la luz
 			
 			canConsume = true;
@@ -665,6 +668,7 @@ void CIri2Controller::Unload ()
 	if ((ground[0]== 0.5) && (ground[1] == 0.5) && (ground[2]== 0.5)){ // Si los tres sensores ground estan a cero descarga la bateria
 		canUnload = true;
 		consumeInhibitor = 1.0;
+		hasBlack = false;
 	}
 
 }
@@ -682,7 +686,7 @@ void CIri2Controller::AvoidBlue( unsigned int un_priority )
 	consumeInhibitor = 1.0;
 	float fRepelent = 0.0;
 
-	if (bluebattery[0] == 1.0 && hasLightTurnedOff || avoidBlueExhibitor == 0.0){
+	if (bluebattery[0] == 1.0 && hasLightTurnedOff || avoidBlueSuppressor == 0.0){
 
 		m_pcEpuck->SetAllColoredLeds(LED_COLOR_YELLOW);
 		consumeInhibitor = 0.0;
@@ -737,12 +741,11 @@ void CIri2Controller::Recharge ( unsigned int un_priority)
 	vRepelent.x = 0.0;
 	vRepelent.y = 0.0;
 
-
-	avoidBlueExhibitor = 1.0;
+	avoidBlueSuppressor = 1.0;
 	float fRepelent = 0.0;
 
 	if (redbattery[0] < 0.3){
-		avoidBlueExhibitor = 0.0;
+		avoidBlueSuppressor = 0.0;
 	/* Calc vector Sum */
 		for ( int i = 0 ; i < m_seBlueLight->GetNumberOfInputs() ; i ++ )
 		{
@@ -784,7 +787,6 @@ void CIri2Controller::BacteriaAppears()
 	m_seBlueLight = (CRealBlueLightSensor*) m_pcEpuck->GetSensor(SENSOR_REAL_BLUE_LIGHT);
 
 	if (dayCounter % 2 == 0 && !hasBacteriaAppeared) {
-		extern bool hasBacteriaAppeared;
 		m_seBlueLight -> SwitchNearestLight(1);
 		hasBacteriaAppeared = true;
 	}
@@ -856,7 +858,7 @@ string CIri2Controller::pathFind( const int & xStart, const int & yStart,
   // A* search
   while(!pq[pqi].empty())
   {
-  	printf("(1) PASO POR AQUI\n");
+  	
     // get the current node w/ the highest priority
     // from the list of open nodes
     n0=new node( pq[pqi].top().getxPos(), pq[pqi].top().getyPos(), 
@@ -878,7 +880,6 @@ string CIri2Controller::pathFind( const int & xStart, const int & yStart,
       string path="";
       while(!(x==xStart && y==yStart))
       {
-      	printf("(2) PASO POR AQUI\n");
         j=dir_map[x][y];
         c='0'+(j+dir/2)%dir;
         path=c+path;
@@ -968,7 +969,7 @@ void CIri2Controller::PathPlanning ( unsigned int un_priority )
 		}
 	}
 
-	if ( m_nNestFound == 1 && m_nPathPlanningDone == 0)
+	if ( m_nNestFound == 1 && hasBlack && m_nPathPlanningDone == 0)
 	{
 		m_nPathPlanningStops=0;
 
@@ -1137,19 +1138,22 @@ for (int i = 0 ; i < m_nPathPlanningStops ; i++)
 for (int i = 0 ; i < m_nPathPlanningStops ; i++)
 {
     /* Traslation */ 
-	m_vPositionsPlanning[i].x -= ( (robotStartGridX * fXmov) - (mapGridX * fXmov)/2 );
+	m_vPositionsPlanning[i].x += ( (robotStartGridX * fXmov) - (mapGridX * fXmov)/2);
 	m_vPositionsPlanning[i].y += ( (robotStartGridY * fXmov) - (mapGridY * fYmov)/2);
     /* Rotation */
-	double compass = m_pcEpuck->GetRotation();
-	m_vPositionsPlanning[i].x = m_vPositionsPlanning[i].x * cos (compass) - m_vPositionsPlanning[i].y  * sin(compass);
-	m_vPositionsPlanning[i].y = m_vPositionsPlanning[i].x * sin (compass) + m_vPositionsPlanning[i].y  * cos(compass);
+	// double compass = m_pcEpuck->GetRotation();
+	// m_vPositionsPlanning[i].x = m_vPositionsPlanning[i].x * cos (compass) - m_vPositionsPlanning[i].y  * sin(compass);
+	// m_vPositionsPlanning[i].y = m_vPositionsPlanning[i].x * sin (compass) + m_vPositionsPlanning[i].y  * cos(compass);
 }
+
   /* DEBUG */
 for (int i = 0 ; i < m_nPathPlanningStops ; i++)
 	printf("MOV %d: %2f, %2f\n", i, m_vPositionsPlanning[i].x, m_vPositionsPlanning[i].y);
   /* END DEBUG */
 }
+m_nPathPlanningDone = 1;
 }
+
 
 /******************************************************************************/
 /******************************************************************************/
@@ -1216,18 +1220,13 @@ void CIri2Controller::ComputeActualCell ( unsigned int un_priority )
   /* DEBUG */
   
   /* Update no-obstacles on map */
-  if (  onlineMap[m_nRobotActualGridX+10][m_nRobotActualGridY-10] != NEST )
-    onlineMap[m_nRobotActualGridX+10][m_nRobotActualGridY-10] = NO_OBSTACLE;
+  // if (  onlineMap[m_nRobotActualGridX][m_nRobotActualGridY] != NEST )
+  //   onlineMap[m_nRobotActualGridX][m_nRobotActualGridY] = NO_OBSTACLE;
  
   /* If looking for nest and arrived to nest */
  if ((ground[0]== 0.5) && (ground[1] == 0.5) && (ground[2]== 0.5)){ // Si los tres sensores ground estan a cero descarga la bateria
-   
-    /* Asumme Path Planning is done */
-    m_nPathPlanningDone = 0;
-    /* Restart PathPlanning state */
-    m_nState = 0;
     /* Mark nest on map */
-    onlineMap[m_nRobotActualGridX+10][m_nRobotActualGridY-10] = NEST;
+    onlineMap[m_nRobotActualGridX][m_nRobotActualGridY] = NEST;
     /* Flag that nest was found */
     m_nNestFound = 1;
     /* Update nest grid */
@@ -1237,6 +1236,14 @@ void CIri2Controller::ComputeActualCell ( unsigned int un_priority )
     //PrintMap(&onlineMap[0][0]);
     /* DEBUG */
   }//end looking for nest
+
+  if ((ground[0]== 0.0) && (ground[1] == 0.0) && (ground[2]== 0.0) && !hasBlack && consumeInhibitor == 0.0){
+
+  	m_nPathPlanningDone = 0;
+  	m_nState = 0;
+  	hasBlack = true;
+
+  }
   
 }
 
@@ -1249,7 +1256,7 @@ void CIri2Controller::GoGoal ( unsigned int un_priority )
 	double* redbattery = m_seRedBattery->GetSensorReading(m_pcEpuck);
 	double fGoalDirection = 0;
 
-  if ( redbattery[0] > 0.3 && avoidInhibitor == 1.0) // Si se cumplen las condiciones
+  if ( redbattery[0] > 0.3 && consumeInhibitor == 0.0 && hasBlack) // Si se cumplen las condiciones
   {
     /* Enable Inhibitor to Forage */
     //fGoalToForageInhibitor = 0.0;
@@ -1281,9 +1288,6 @@ void CIri2Controller::GoGoal ( unsigned int un_priority )
     /* Normalize Direction */
     while ( fGoalDirection > M_PI) fGoalDirection -= 2 * M_PI;
     while ( fGoalDirection < -M_PI) fGoalDirection+=2*M_PI;
-
-    m_fActivationTable[un_priority][0] = fGoalDirection;
-    m_fActivationTable[un_priority][1] = 1;
   }
    m_fActivationTable[un_priority][0] = fGoalDirection;
    m_fActivationTable[un_priority][1] = 1;

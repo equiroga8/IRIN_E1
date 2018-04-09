@@ -46,11 +46,15 @@ RED LIGHT 8: X POSITION										= 1.45
 RED LIGHT 8: Y POSITION										= -0.99
 RED LIGHT 9: X POSITION										= 1.45
 RED LIGHT 9: Y POSITION										= -1.32
-NUMBER OF GROUND AREA 										= 1
+NUMBER OF GROUND AREA 										= 2
 GROUND AREA 1 X POSITION									= -0.8
 GROUND AREA 1 Y POSITION									= -0.85
 GROUND AREA 1 RADIUS										= 0.25
 GROUND AREA 1 COLOR (0.0 Black, 0.5 Grey)					= 0.5
+GROUND AREA 2 X POSITION									= -0.85
+GROUND AREA 2 Y POSITION									= 0.9
+GROUND AREA 2 RADIUS										= 0.25
+GROUND AREA 2 COLOR (0.0 Black, 0.5 Grey)					= 0.0
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -68,5 +72,5 @@ BLUE BATTERY CHARGE COEF 					= 0.5
 BLUE BATTERY DISCHARGE COEF					= 1.0
 RED BATTERY SENSOR RANGE (meters)			= 0.75
 RED BATTERY CHARGE COEF 					= 0.1
-RED BATTERY DISCHARGE COEF					= 0.0007
+RED BATTERY DISCHARGE COEF					= 0.0004
 ODOMETRY ERROR                        		= 0.0

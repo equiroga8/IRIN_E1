@@ -46,10 +46,11 @@ private:
 	int 		m_nWriteToFile;
 	bool 		hasLightTurnedOff;
 	double 		m_fTime;
-	double		avoidInhibitor;
+	double		avoidSuppressor;
 	double		consumeInhibitor;
-	double		avoidBlueExhibitor;
+	double		avoidBlueSuppressor;
 	int 		counter;
+	bool 		hasBlack;
 
 	int       m_nState;
 	dVector2 *m_vPositionsPlanning;
