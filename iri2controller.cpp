@@ -215,10 +215,9 @@ CIri2Controller::CIri2Controller (const char* pch_name, CEpuck* pc_epuck, int n_
 	hasLightTurnedOff = false;
 
 	// Contador para activar luces 
-	counter = 0;
+	//counter = 0;
 
-	hasBlack = false;
-	// Inhibidores y Exhibidores (No se llama Exhibidor)
+	onePathPlan = true;
 
 	avoidSuppressor = 1.0;
 	consumeInhibitor = 1.0;
@@ -433,6 +432,9 @@ void CIri2Controller::ExecuteBehaviors ( void )
 	printf("avoidSuppressor: %2.4f\n", avoidSuppressor);
 	printf("avoidBlueSuppressor: %2.4f\n", avoidBlueSuppressor);
 	printf("Artery Position [%i, %i]\n",m_nArteryGridX, m_nArteryGridY);
+	printf("onePathPlan %i\n", onePathPlan);
+	printf("m_nPathPlanningStops %i\n", m_nPathPlanningStops);
+	printf("m_nState %i\n", onePathPlan);
 	
 }
 
@@ -662,8 +664,7 @@ void CIri2Controller::Unload ()
 
 	if ((ground[0]== 0.5) && (ground[1] == 0.5) && (ground[2]== 0.5)){ // Si los tres sensores ground estan a cero descarga la bateria
 		canUnload = true;
-		consumeInhibitor = 1.0;
-		hasBlack = false;
+		onePathPlan = true;		
 	}
 
 }
@@ -707,6 +708,9 @@ void CIri2Controller::AvoidBlue( unsigned int un_priority )
 		
 		
 
+	}
+	if (bluebattery[0] < 1.0){
+		consumeInhibitor = 1.0;
 	}
 	m_fActivationTable[un_priority][0] = fRepelent;
 	m_fActivationTable[un_priority][1] = 1.2;
@@ -785,6 +789,8 @@ void CIri2Controller::BacteriaAppears()
 		m_seBlueLight -> SwitchNearestLight(1);
 		hasBacteriaAppeared = true;
 	}
+
+	printf("----------------dayCounter: %i\n", dayCounter);
 }
 
 
@@ -964,7 +970,7 @@ void CIri2Controller::PathPlanning ( unsigned int un_priority )
 		}
 	}
 
-	if ( m_nArteryFound == 1 && hasBlack && m_nPathPlanningDone == 0)
+	if ( m_nArteryFound == 1  && m_nPathPlanningDone == 0)
 	{
 		m_nPathPlanningStops=0;
 
@@ -1013,8 +1019,8 @@ void CIri2Controller::PathPlanning ( unsigned int un_priority )
 
     	/* Get actual position */
 			dVector2 actualPos;
-			actualPos.x = robotStartGridX * fXmov;
-			actualPos.y = robotStartGridY * fYmov;
+			actualPos.x = m_nRobotActualGridX * fXmov;
+			actualPos.y = m_nRobotActualGridY * fYmov;
 
   /* Fill vector of desired positions */
 			int stop = 0;
@@ -1232,11 +1238,11 @@ void CIri2Controller::ComputeActualCell ( unsigned int un_priority )
     /* DEBUG */
   }//end looking for Artery
 
-  if ((ground[0]== 0.0) && (ground[1] == 0.0) && (ground[2]== 0.0) && !hasBlack && consumeInhibitor == 0.0){
+  if (dayCounter % 2 == 0 && consumeInhibitor == 0.0 && onePathPlan){
 
   	m_nPathPlanningDone = 0;
   	m_nState = 0;
-  	hasBlack = true;
+  	onePathPlan = false;
 
   }
   
@@ -1251,7 +1257,7 @@ void CIri2Controller::GoToArtery ( unsigned int un_priority )
 	double* redbattery = m_seRedBattery->GetSensorReading(m_pcEpuck);
 	double fGoalDirection = 0;
 
-  if ( redbattery[0] > THRESHOLD && consumeInhibitor == 0.0 && hasBlack) // Si se cumplen las condiciones
+  if ( redbattery[0] > THRESHOLD && consumeInhibitor == 0.0 && !onePathPlan) // Si se cumplen las condiciones
   {
     /* Enable Inhibitor to Forage */
     //fGoalToForageInhibitor = 0.0;
@@ -1274,8 +1280,10 @@ void CIri2Controller::GoToArtery ( unsigned int un_priority )
     double fY = (m_vPositionsPlanning[m_nState].y - m_vPosition.y);
 
     /* If on Goal, return 1 */
-    if ( ( fabs(fX) <= ERROR_POSITION ) && ( fabs(fY) <= ERROR_POSITION ) )
+    if ( ( fabs(fX) <= ERROR_POSITION ) && ( fabs(fY) <= ERROR_POSITION ) ){
       m_nState++;
+
+    }
 
     fGoalDirection = atan2(fY, fX);
 

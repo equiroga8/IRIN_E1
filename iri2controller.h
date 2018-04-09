@@ -47,8 +47,8 @@ private:
 	double		avoidSuppressor;
 	double		consumeInhibitor;
 	double		avoidBlueSuppressor;
-	int 		counter;
-	bool 		hasBlack;
+	
+	bool 		onePathPlan;
 
 	int       m_nState;
 	dVector2 *m_vPositionsPlanning;
