@@ -61,9 +61,9 @@ private:
     int       m_nPathPlanningDone;
 
 
-    int       m_nNestFound;
-    int       m_nNestGridX;
-    int       m_nNestGridY;
+    int       m_nArteryFound;
+    int       m_nArteryGridX;
+    int       m_nArteryGridY;
 
 
     int 	speed;

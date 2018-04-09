@@ -77,16 +77,14 @@ using namespace std;
 #define RECHARGE_PRIORITY 	4
 #define GO_UNLOAD_PRIORITY  5
 
-#define SPEED 500
-
-#define PROXIMITY_THRESHOLD 0.3
+#define THRESHOLD 0.3
 
 #define NO_OBSTACLE 0
 #define OBSTACLE    1
 #define START       2
 #define PATH        3
 #define END         4
-#define NEST        5
+#define ARTERY      5
 
 class node
 {
@@ -193,9 +191,9 @@ CIri2Controller::CIri2Controller (const char* pch_name, CEpuck* pc_epuck, int n_
 	m_nRobotActualGridX = robotStartGridX;
 	m_nRobotActualGridY = robotStartGridY;
 
-	m_nNestGridX  = 0;
-	m_nNestGridY  = 0;
-	m_nNestFound  = 0;
+	m_nArteryGridX  = 0;
+	m_nArteryGridY  = 0;
+	m_nArteryFound  = 0;
 
 
 	speed = 600;
@@ -435,7 +433,7 @@ void CIri2Controller::ExecuteBehaviors ( void )
 	printf("consumeInhibitor: %2.4f\n", consumeInhibitor);
 	printf("avoidSuppressor: %2.4f\n", avoidSuppressor);
 	printf("avoidBlueSuppressor: %2.4f\n", avoidBlueSuppressor);
-	printf("Nest Position [%i, %i]\n",m_nNestGridX, m_nNestGridY);
+	printf("Artery Position [%i, %i]\n",m_nArteryGridX, m_nArteryGridY);
 	
 }
 
@@ -534,7 +532,7 @@ void CIri2Controller::ObstacleAvoidance ( unsigned int un_priority )
 	while ( fRepelent < -M_PI ) fRepelent += 2 * M_PI;
 
 	/* If above a threshold */
-	if ( fMaxProx > PROXIMITY_THRESHOLD )
+	if ( fMaxProx > THRESHOLD )
 	{
 		avoidSuppressor = 1.0;
 		
@@ -616,12 +614,10 @@ void CIri2Controller::Consume ( unsigned int un_priority )
 			vRepelent.x += bluelight[i] * cos ( blueLightDirections[i] );
 			vRepelent.y += bluelight[i] * sin ( blueLightDirections[i] );
 
-			if ( bluelight[i] > fMaxLight )
-				fMaxLight = bluelight[i];
 		}
 
 	/* Calc pointing angle */
-		fRepelent = 1.5*atan2(vRepelent.y, vRepelent.x);
+		fRepelent = atan2(vRepelent.y, vRepelent.x);
 		
   	/* Normalize angle */
 		while ( fRepelent > M_PI ) fRepelent -= 2 * M_PI;
@@ -644,7 +640,7 @@ void CIri2Controller::Consume ( unsigned int un_priority )
 	}
 
 	m_fActivationTable[un_priority][0] = fRepelent;
-	m_fActivationTable[un_priority][1] = 1.0;
+	m_fActivationTable[un_priority][1] = 1.5;
 
 
 	printf("CONSUME_fRepelent = %2.4f\n", fRepelent);
@@ -704,7 +700,7 @@ void CIri2Controller::AvoidBlue( unsigned int un_priority )
 		}
 
 	/* Calc pointing angle */
-		fRepelent = 1.2 * atan2(-vRepelent.y, vRepelent.x);
+		fRepelent = atan2(-vRepelent.y, vRepelent.x);
 		
   	/* Normalize angle */
 		while ( fRepelent > M_PI ) fRepelent -= 2 * M_PI;
@@ -714,7 +710,7 @@ void CIri2Controller::AvoidBlue( unsigned int un_priority )
 
 	}
 	m_fActivationTable[un_priority][0] = fRepelent;
-	m_fActivationTable[un_priority][1] = 1.0;
+	m_fActivationTable[un_priority][1] = 1.2;
 	printf("changeAngleAVOIDBLUE => %2.4f\n",m_fActivationTable[un_priority][0]);
 
 	if (m_nWriteToFile ) 
@@ -744,7 +740,7 @@ void CIri2Controller::Recharge ( unsigned int un_priority)
 	avoidBlueSuppressor = 1.0;
 	float fRepelent = 0.0;
 
-	if (redbattery[0] < 0.3){
+	if (redbattery[0] < THRESHOLD){
 		avoidBlueSuppressor = 0.0;
 	/* Calc vector Sum */
 		for ( int i = 0 ; i < m_seBlueLight->GetNumberOfInputs() ; i ++ )
@@ -897,7 +893,7 @@ string CIri2Controller::pathFind( const int & xStart, const int & yStart,
     // generate moves (child nodes) in all possible directions
     for ( i = 0 ; i < dir ; i++ )
     {
-    	printf("(3) PASO POR AQUI\n");
+    	
       xdx=x+dx[i]; ydy=y+dy[i];
 
       if(!(xdx<0 || xdx>n-1 || ydy<0 || ydy>m-1 || map[xdx][ydy]==1 
@@ -969,15 +965,15 @@ void CIri2Controller::PathPlanning ( unsigned int un_priority )
 		}
 	}
 
-	if ( m_nNestFound == 1 && hasBlack && m_nPathPlanningDone == 0)
+	if ( m_nArteryFound == 1 && hasBlack && m_nPathPlanningDone == 0)
 	{
 		m_nPathPlanningStops=0;
 
     /* Obtain start and end desired position */
 		int xA=m_nRobotActualGridX;
 		int yA=m_nRobotActualGridY;
-		int xB=m_nNestGridX;
-		int yB=m_nNestGridY;
+		int xB=m_nArteryGridX;
+		int yB=m_nArteryGridY;
 
 		 /* DEBUG */
 		printf("START: %d, %d - END: %d, %d\n", xA, yA, xB, yB);
@@ -986,7 +982,7 @@ void CIri2Controller::PathPlanning ( unsigned int un_priority )
     /* Obtain Map */
 		for ( int y = 0 ; y < m ; y++ )
 			for ( int x = 0 ; x < n ; x++ )
-				if (onlineMap[x][y] != NO_OBSTACLE && onlineMap[x][y] != NEST)
+				if (onlineMap[x][y] != NO_OBSTACLE && onlineMap[x][y] != ARTERY)
 					map[x][y] = OBSTACLE;
 
 
@@ -1220,22 +1216,22 @@ void CIri2Controller::ComputeActualCell ( unsigned int un_priority )
   /* DEBUG */
   
   /* Update no-obstacles on map */
-  // if (  onlineMap[m_nRobotActualGridX][m_nRobotActualGridY] != NEST )
+  // if (  onlineMap[m_nRobotActualGridX][m_nRobotActualGridY] != ARTERY )
   //   onlineMap[m_nRobotActualGridX][m_nRobotActualGridY] = NO_OBSTACLE;
  
-  /* If looking for nest and arrived to nest */
+  /* If looking for Artery and arrived to Artery */
  if ((ground[0]== 0.5) && (ground[1] == 0.5) && (ground[2]== 0.5)){ // Si los tres sensores ground estan a cero descarga la bateria
-    /* Mark nest on map */
-    onlineMap[m_nRobotActualGridX][m_nRobotActualGridY] = NEST;
-    /* Flag that nest was found */
-    m_nNestFound = 1;
-    /* Update nest grid */
-    m_nNestGridX = m_nRobotActualGridX;
-    m_nNestGridY = m_nRobotActualGridY;
+    /* Mark Artery on map */
+    onlineMap[m_nRobotActualGridX][m_nRobotActualGridY] = ARTERY;
+    /* Flag that Artery was found */
+    m_nArteryFound = 1;
+    /* Update Artery grid */
+    m_nArteryGridX = m_nRobotActualGridX;
+    m_nArteryGridY = m_nRobotActualGridY;
     /* DEBUG */
     //PrintMap(&onlineMap[0][0]);
     /* DEBUG */
-  }//end looking for nest
+  }//end looking for Artery
 
   if ((ground[0]== 0.0) && (ground[1] == 0.0) && (ground[2]== 0.0) && !hasBlack && consumeInhibitor == 0.0){
 
@@ -1256,7 +1252,7 @@ void CIri2Controller::GoGoal ( unsigned int un_priority )
 	double* redbattery = m_seRedBattery->GetSensorReading(m_pcEpuck);
 	double fGoalDirection = 0;
 
-  if ( redbattery[0] > 0.3 && consumeInhibitor == 0.0 && hasBlack) // Si se cumplen las condiciones
+  if ( redbattery[0] > THRESHOLD && consumeInhibitor == 0.0 && hasBlack) // Si se cumplen las condiciones
   {
     /* Enable Inhibitor to Forage */
     //fGoalToForageInhibitor = 0.0;
@@ -1264,7 +1260,7 @@ void CIri2Controller::GoGoal ( unsigned int un_priority )
     /* If something not found at the end of planning, reset plans */
     if (m_nState >= m_nPathPlanningStops )
     {
-      //m_nNestFound  = 0;
+      //m_nArteryFound  = 0;
       m_nState      = 0;
       return;
     }
@@ -1272,6 +1268,7 @@ void CIri2Controller::GoGoal ( unsigned int un_priority )
     /* DEBUG */
     printf("PlanningX: %2f, Actual: %2f\n", m_vPositionsPlanning[m_nState].x, m_vPosition.x );
     printf("PlanningY: %2f, Actual: %2f\n", m_vPositionsPlanning[m_nState].y, m_vPosition.y );
+    printf("m_nState: %i\n", m_nState)
     /* DEBUG */
     
     double fX = (m_vPositionsPlanning[m_nState].x - m_vPosition.x);
@@ -1287,10 +1284,10 @@ void CIri2Controller::GoGoal ( unsigned int un_priority )
     fGoalDirection -= m_fOrientation;
     /* Normalize Direction */
     while ( fGoalDirection > M_PI) fGoalDirection -= 2 * M_PI;
-    while ( fGoalDirection < -M_PI) fGoalDirection+=2*M_PI;
+    while ( fGoalDirection < -M_PI) fGoalDirection += 2 * M_PI;
   }
    m_fActivationTable[un_priority][0] = fGoalDirection;
-   m_fActivationTable[un_priority][1] = 1;
+   m_fActivationTable[un_priority][1] = 1.0;
 
 
   printf(" fGoalDirection: %2f\n", fGoalDirection );
