@@ -343,24 +343,26 @@ void CIri2Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 	printf("\n");
 	
 	/* Fin: Incluir las ACCIONES/CONTROLADOR a implementar */
+	printf("ACTUAL GRID: (%i, %i)\n", m_nRobotActualGridX, m_nRobotActualGridY);
 	printf("ARTERY GRID: (%i,%i)\n",m_nArteryGridX,m_nArteryGridY);
 
+
 	FILE* filePosition = fopen("outputFiles/robotPosition", "a");
-	fprintf(filePosition," %2.4f %2.4f %2.4f %2.4f\n",
+	fprintf(filePosition," %2.4f %2.4f %2.4f %2.4f %2.4f %2.4f\n",
 	f_time, m_pcEpuck->GetPosition().x,
 	m_pcEpuck->GetPosition().y,
-	m_pcEpuck->GetRotation());
+	m_fLeftSpeed, m_fRightSpeed);
 	fclose(filePosition);
 	
 	
 	/* Move time to global variable, so it can be used by the bahaviors to write to files*/
 	m_fTime = f_time;
-	printf("--------------------------BEHAVIORS-------------------------------\n");
+	printf("--------------------BEHAVIORS--------------------------\n");
 	/* Execute the levels of competence */
 	ExecuteBehaviors();
 	/* Execute Coordinator */
 	Coordinator();
-	
+	printf("-------------------END BEHAVIORS-----------------------\n");
 	/* Set Speed to wheels */
 	m_acWheels->SetSpeed(m_fLeftSpeed, m_fRightSpeed);	
 	
@@ -472,14 +474,16 @@ void CIri2Controller::ObstacleAvoidance ( unsigned int un_priority )
 	/* Calc pointing angle */
 	float fRepelent = atan2(vRepelent.y, vRepelent.x);
 	/* Create repelent angle */
+	if (fRepelent != 0.0){
+		printf("AVOID\n");
+	}
+
 	fRepelent -= M_PI;
 	/* Normalize angle */
 	while ( fRepelent > M_PI ) fRepelent -= 2 * M_PI;
 	while ( fRepelent < -M_PI ) fRepelent += 2 * M_PI;
 
-	if (fRepelent != 0.0){
-		printf("AVOID\n");
-	}
+	
 
 	/* If above a threshold */
 	if ( fMaxProx > THRESHOLD )
@@ -1160,7 +1164,7 @@ void CIri2Controller::ComputeActualCell ( unsigned int un_priority )
   
   
   /* DEBUG */
-  printf("ACTUAL GRID: (%i, %i)\n", m_nRobotActualGridX, m_nRobotActualGridY);
+  //printf("ACTUAL GRID: (%i, %i)\n", m_nRobotActualGridX, m_nRobotActualGridY);
   /* DEBUG */
  
   /* If looking for Artery and arrived to Artery */
