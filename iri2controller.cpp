@@ -355,10 +355,9 @@ void CIri2Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 	
 	/* Move time to global variable, so it can be used by the bahaviors to write to files*/
 	m_fTime = f_time;
-
+	printf("--------------------------BEHAVIORS-------------------------------\n");
 	/* Execute the levels of competence */
 	ExecuteBehaviors();
-
 	/* Execute Coordinator */
 	Coordinator();
 	
@@ -419,7 +418,7 @@ void CIri2Controller::Coordinator ( void )
 	} else {
 
 		fAngle = m_fActivationTable[AVOID_PRIORITY][1] * m_fActivationTable[AVOID_PRIORITY][0];
-		printf("AVOID\n");
+		
 	}
 	
   	/* Normalize fAngle */
@@ -477,6 +476,10 @@ void CIri2Controller::ObstacleAvoidance ( unsigned int un_priority )
 	/* Normalize angle */
 	while ( fRepelent > M_PI ) fRepelent -= 2 * M_PI;
 	while ( fRepelent < -M_PI ) fRepelent += 2 * M_PI;
+
+	if (fRepelent != 0.0){
+		printf("AVOID\n");
+	}
 
 	/* If above a threshold */
 	if ( fMaxProx > THRESHOLD )
@@ -552,7 +555,7 @@ void CIri2Controller::Consume ( unsigned int un_priority )
 	if (consumeInhibitor == 1.0){
 
 		hasLightTurnedOff = false;
-		printf("CONSUME\n");
+		
 	/* Calc vector Sum */
 		for ( int i = 0 ; i < m_seBlueLight->GetNumberOfInputs() ; i ++ )
 		{
@@ -564,10 +567,16 @@ void CIri2Controller::Consume ( unsigned int un_priority )
 	/* Calc pointing angle */
 		fRepelent = atan2(vRepelent.y, vRepelent.x);
 		
+		if (fRepelent != 0.0) {
+			m_pcEpuck->SetAllColoredLeds(LED_COLOR_BLUE);
+
+		}
   	/* Normalize angle */
 		while ( fRepelent > M_PI ) fRepelent -= 2 * M_PI;
 		while ( fRepelent < -M_PI ) fRepelent += 2 * M_PI;
-
+		if (fRepelent != 0.0){
+			printf("CONSUME\n");
+		}
 		
 
 		if ( (bluelight[0]+bluelight[1]+bluelight[2]+bluelight[3]+bluelight[4]+bluelight[5]+bluelight[6]+bluelight[7]) > 1.6 ){
@@ -623,7 +632,7 @@ void CIri2Controller::AvoidBlue( unsigned int un_priority )
 	if (bluebattery[0] == 1.0 && hasLightTurnedOff || avoidBlueSuppressor == 0.0){
 		if (avoidBlueSuppressor != 0.0){
 			m_pcEpuck->SetAllColoredLeds(LED_COLOR_YELLOW);
-			printf("AVOID_BLUE\n");
+			
 		}
 		consumeInhibitor = 0.0;
 		
@@ -647,7 +656,9 @@ void CIri2Controller::AvoidBlue( unsigned int un_priority )
 		while ( fRepelent > M_PI ) fRepelent -= 2 * M_PI;
 		while ( fRepelent < -M_PI ) fRepelent += 2 * M_PI;
 		
-		
+		if (fRepelent != 0.0){
+			printf("AVOID_BLUE\n");
+		}
 
 	}
 	
@@ -684,7 +695,6 @@ void CIri2Controller::Recharge ( unsigned int un_priority)
 		avoidBlueSuppressor = 0.0;
 		goArteryInhibitor = 0.0;
 	/* Calc vector Sum */
-		printf("RECHARGE\n");
 		for ( int i = 0 ; i < m_seBlueLight->GetNumberOfInputs() ; i ++ )
 		{
 			vRepelent.x += redlight[i] * cos ( redLightDirections[i] );
@@ -698,6 +708,9 @@ void CIri2Controller::Recharge ( unsigned int un_priority)
 		while ( fRepelent > M_PI ) fRepelent -= 2 * M_PI;
 		while ( fRepelent < -M_PI ) fRepelent += 2 * M_PI;
 
+		if (fRepelent != 0.0) {
+			printf("RECHARGE\n");
+		}
 		m_pcEpuck->SetAllColoredLeds(LED_COLOR_RED);
 	}
 		
@@ -1147,7 +1160,7 @@ void CIri2Controller::ComputeActualCell ( unsigned int un_priority )
   
   
   /* DEBUG */
-  printf("GRID: (%i, %i)\n", m_nRobotActualGridX, m_nRobotActualGridY);
+  printf("ACTUAL GRID: (%i, %i)\n", m_nRobotActualGridX, m_nRobotActualGridY);
   /* DEBUG */
  
   /* If looking for Artery and arrived to Artery */
@@ -1184,8 +1197,8 @@ void CIri2Controller::GoToArtery ( unsigned int un_priority )
 	double* bluebattery = m_seBlueBattery->GetSensorReading(m_pcEpuck);
 	double fGoalDirection = 0;
 
-  if ( goArteryInhibitor == 1.0 && bluebattery[0] == 1.0 && !onePathPlan) // Si se cumplen las condiciones
-  {
+ 	if ( goArteryInhibitor == 1.0 && bluebattery[0] == 1.0 && !onePathPlan) // Si se cumplen las condiciones
+  	{
     /* If something not found at the end of planning, reset plans */
     if (m_nState >= m_nPathPlanningStops )
     {
@@ -1195,7 +1208,6 @@ void CIri2Controller::GoToArtery ( unsigned int un_priority )
     }
 
     /* DEBUG */
-    printf("GO_ARTERY\n");
     printf("PlanningX: %2f, Actual: %2f\n", m_vPositionsPlanning[m_nState].x, m_vPosition.x );
     printf("PlanningY: %2f, Actual: %2f\n", m_vPositionsPlanning[m_nState].y, m_vPosition.y );
     printf("m_nState: %i\n", m_nState);
@@ -1218,7 +1230,10 @@ void CIri2Controller::GoToArtery ( unsigned int un_priority )
     while ( fGoalDirection > M_PI) fGoalDirection -= 2 * M_PI;
     while ( fGoalDirection < -M_PI) fGoalDirection += 2 * M_PI;
 
-  }
+    if (fGoalDirection != 0.0){
+    	printf("GO_ARTERY\n");
+    }
+  	}
    m_fActivationTable[un_priority][0] = fGoalDirection;
    m_fActivationTable[un_priority][1] = 1.0;
 
