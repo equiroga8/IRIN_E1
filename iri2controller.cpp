@@ -10,7 +10,6 @@
 #include <cstdlib>
 #include <ctime>
 #include <iomanip>
-
 #include <string>
 #include <math.h>
 #include <cstdio>
@@ -39,10 +38,10 @@
 
 extern gsl_rng* rng;
 extern long int rngSeed;
-extern bool canConsume = true; // Variable global que sirve para que blueBattery solo aumente 0.25 por cada luz consumida 
-extern bool canUnload = false;
-extern int dayCounter = 0;
-extern bool hasBacteriaAppeared = false;
+extern bool canConsume = true; // Variable global que sirve para que blueBattery solo aumente 0.25 por cada luz consumida.
+extern bool canUnload = false; // Variable global que sirve para saber si se pueden descargar los residuos.
+extern int dayCounter = 0; // Variable globarl que sirve para contar las veces que se apaga y enciende la luz amarilla.
+extern bool hasBacteriaAppeared = false; //Variable global que sirve para que no se encienda más de una luz azul en el mismo día.
 
 
 const int mapGridX          = 20;
@@ -70,14 +69,14 @@ using namespace std;
 
 #define BEHAVIORS 			6
 
-#define AVOID_PRIORITY 		0
-#define AVOID_BLUE_PRIORITY 1
-#define CONSUME_PRIORITY 	2
-#define NAVIGATE_PRIORITY 	3
-#define RECHARGE_PRIORITY 	4
-#define GO_UNLOAD_PRIORITY  5
+#define AVOID_PRIORITY 		0	// Se pasa como parámetro al comportamiento ObstacleAvoidance.
+#define AVOID_BLUE_PRIORITY 1	// Se pasa como parámetro al comportamiento AvoidBlue.
+#define CONSUME_PRIORITY 	2	// Se pasa como parámetro al comportamiento Consume.
+#define NAVIGATE_PRIORITY 	3	// Se pasa como parámetro al comportamiento Navigate.
+#define RECHARGE_PRIORITY 	4	// Se pasa como parámetro al comportamiento Recharge.
+#define GO_UNLOAD_PRIORITY  5	// Se pasa como parámetro a los comportamientos ComputeActualCell, PathPlanning y GoToArtery.
 
-#define THRESHOLD 0.3
+#define THRESHOLD 0.3	// Umbral usado en los comportamientos ObstacleAvoidance, Recharge y GoToArtery.
 
 #define NO_OBSTACLE 0
 #define OBSTACLE    1
@@ -181,6 +180,8 @@ CIri2Controller::CIri2Controller (const char* pch_name, CEpuck* pc_epuck, int n_
 	m_seCompass = (CCompassSensor*) m_pcEpuck->GetSensor (SENSOR_COMPASS);
 
 	
+
+
 	m_nState              = 0;
 	m_nPathPlanningStops  = 0;
 	m_fOrientation        = 0.0;
@@ -195,12 +196,15 @@ CIri2Controller::CIri2Controller (const char* pch_name, CEpuck* pc_epuck, int n_
 	m_nArteryGridY  = 0;
 	m_nArteryFound  = 0;
 
+	onePathPlan = true;
+
 
 	speed = 600;
 
  	/* Initialize PAthPlanning Flag*/
 	m_nPathPlanningDone = 0;
 
+	// Mapa inicial
   	for ( int y = 0 ; y < m ; y++ )
 		{
 			for ( int x = 0 ; x < n ; x++ )
@@ -214,14 +218,11 @@ CIri2Controller::CIri2Controller (const char* pch_name, CEpuck* pc_epuck, int n_
 	// Variable que sirve para la ultima luz consumida antes de entrar en AvoidBlueLight
 	hasLightTurnedOff = false;
 
-	// Contador para activar luces 
-	//counter = 0;
-
-	onePathPlan = true;
-
+	// Inicializacion de las variables globales necesarias para los inhibidores y supresores.
 	avoidSuppressor = 1.0;
 	consumeInhibitor = 1.0;
 	avoidBlueSuppressor = 1.0;
+	goArteryInhibitor = 1.0;
 
 	m_fActivationTable = new double* [BEHAVIORS];
 	for ( int i = 0 ; i < BEHAVIORS ; i++ )
@@ -327,21 +328,7 @@ void CIri2Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 		printf("%1.3f ", ground[i]);
 	}
 	printf("\n");
-	/*
-	printf("GROUND MEMORY: ");
-	for ( int i = 0 ; i < m_seGroundMemory->GetNumberOfInputs() ; i ++ )
-	{
-		printf("%1.3f ", groundMemory[i]);
-	}
-	printf("\n");
 	
-	printf("BATTERY: ");
-	for ( int i = 0 ; i < m_seBattery->GetNumberOfInputs() ; i ++ )
-	{
-		printf("%1.3f ", battery[i]);
-	}
-	printf("\n");
-	*/
 	printf("BLUE BATTERY: ");
 	for ( int i = 0 ; i < m_seBlueBattery->GetNumberOfInputs() ; i ++ )
 	{
@@ -354,35 +341,17 @@ void CIri2Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 		printf("%1.3f ", redbattery[i]);
 	}
 	printf("\n");
-	/*
-  printf("ENCODER: ");
-	for ( int i = 0 ; i < m_seEncoder->GetNumberOfInputs() ; i ++ )
-	{
-		printf("%1.5f ", encoder[i]);
-	}
-	printf("\n");
-	*/  
-	printf("COMPASS: ");
-	for ( int i = 0 ; i < m_seCompass->GetNumberOfInputs() ; i ++ )
-	{
-		printf("%1.5f ", compass[i]);
-	}
-	printf("\n");
-
+	
 	/* Fin: Incluir las ACCIONES/CONTROLADOR a implementar */
-
-
-
+	printf("ARTERY GRID: (%i,%i)\n",m_nArteryGridX,m_nArteryGridY);
 
 	FILE* filePosition = fopen("outputFiles/robotPosition", "a");
 	fprintf(filePosition," %2.4f %2.4f %2.4f %2.4f\n",
-		f_time, m_pcEpuck->GetPosition().x,
-		m_pcEpuck->GetPosition().y,
-		m_pcEpuck->GetRotation());
+	f_time, m_pcEpuck->GetPosition().x,
+	m_pcEpuck->GetPosition().y,
+	m_pcEpuck->GetRotation());
 	fclose(filePosition);
 	
-	
-
 	
 	/* Move time to global variable, so it can be used by the bahaviors to write to files*/
 	m_fTime = f_time;
@@ -392,10 +361,7 @@ void CIri2Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 
 	/* Execute Coordinator */
 	Coordinator();
-// ESTO HAY QUE QUITARLO
-	PrintMap(&onlineMap[0][0]);
-// HASTA AQUI
-
+	
 	/* Set Speed to wheels */
 	m_acWheels->SetSpeed(m_fLeftSpeed, m_fRightSpeed);	
 	
@@ -406,19 +372,21 @@ void CIri2Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 
 void CIri2Controller::ExecuteBehaviors ( void )
 {
-	
-
-	/* Release Inhibitors IMPORTANT ------------------------------------------------*/
-	
+	avoidBlueSuppressor = 1.0;
+	avoidSuppressor = 1.0;
+	consumeInhibitor = 1.0;
+	goArteryInhibitor = 1.0;	
 
 	/* Set Leds to BLACK */
 	m_pcEpuck->SetAllColoredLeds(LED_COLOR_BLACK);
 
-	Consume ( CONSUME_PRIORITY );
+	
 	Navigate ( NAVIGATE_PRIORITY );
-	AvoidBlue( AVOID_BLUE_PRIORITY );
 	Recharge ( RECHARGE_PRIORITY);
+	AvoidBlue( AVOID_BLUE_PRIORITY );
 	ObstacleAvoidance ( AVOID_PRIORITY );
+	Consume ( CONSUME_PRIORITY );
+	
 
 	ComputeActualCell ( GO_UNLOAD_PRIORITY );
   	PathPlanning      ( GO_UNLOAD_PRIORITY );
@@ -427,17 +395,8 @@ void CIri2Controller::ExecuteBehaviors ( void )
   	Unload();
 	BacteriaAppears();
 
-
-	printf("consumeInhibitor: %2.4f\n", consumeInhibitor);
-	printf("avoidSuppressor: %2.4f\n", avoidSuppressor);
-	printf("avoidBlueSuppressor: %2.4f\n", avoidBlueSuppressor);
-	printf("Artery Position [%i, %i]\n",m_nArteryGridX, m_nArteryGridY);
-	printf("onePathPlan %i\n", onePathPlan);
-	printf("m_nPathPlanningStops %i\n", m_nPathPlanningStops);
-	printf("m_nState %i\n", onePathPlan);
 	
 }
-
 
 void CIri2Controller::Coordinator ( void )
 {
@@ -448,39 +407,25 @@ void CIri2Controller::Coordinator ( void )
 	vAngle.x = 0.0;
 	vAngle.y = 0.0;
 
-	if (avoidSuppressor == 0.0)
+	if (avoidSuppressor == 1.0)
 	{
 		for ( nBehavior = 1 ; nBehavior < BEHAVIORS ; nBehavior++ ) {
 
-			// OPCION 1 para calcular el angulo
+			// Cálculo del ángulo
+			fAngle += m_fActivationTable[nBehavior][1] * m_fActivationTable[nBehavior][0];
 
-			fAngle += m_fActivationTable[nBehavior][1]*m_fActivationTable[nBehavior][0];
-
-
-
-			// OPCION 2 para calcular el angulo
-			/* 
-			vAngle.x += m_fActivationTable[nBehavior][1] * cos ( m_fActivationTable[nBehavior][0] );
-			vAngle.y += m_fActivationTable[nBehavior][1] * sin ( m_fActivationTable[nBehavior][0] );
-			*/
-
-			
-
-		//fAngle = 2*atan2(vAngle.y, vAngle.x);
 		}
-	}
-	else {
-		fAngle = m_fActivationTable[AVOID_PRIORITY][1] * m_fActivationTable[AVOID_PRIORITY][0];
-	}
-	
 
+	} else {
+
+		fAngle = m_fActivationTable[AVOID_PRIORITY][1] * m_fActivationTable[AVOID_PRIORITY][0];
+		printf("AVOID\n");
+	}
 	
   	/* Normalize fAngle */
 	while ( fAngle > M_PI ) fAngle -= 2 * M_PI;
 	while ( fAngle < -M_PI ) fAngle += 2 * M_PI;
 
-
-	printf("-----fAngle------- %2.4f\n",fAngle );
 
 	if (fAngle > 0) {
 		m_fLeftSpeed = speed*((M_PI - fAngle) / M_PI);
@@ -500,6 +445,7 @@ void CIri2Controller::Coordinator ( void )
 	}
 }
 
+// Comportamiento que evita los obstáculos para no chocarse.
 void CIri2Controller::ObstacleAvoidance ( unsigned int un_priority )
 {
 	/* Leer Sensores de Proximidad */
@@ -512,7 +458,7 @@ void CIri2Controller::ObstacleAvoidance ( unsigned int un_priority )
 	vRepelent.x = 0.0;
 	vRepelent.y = 0.0;
 
-	avoidSuppressor = 0.0;
+	
 
 	/* Calc vector Sum */
 	for ( int i = 0 ; i < m_seProx->GetNumberOfInputs() ; i ++ )
@@ -535,7 +481,7 @@ void CIri2Controller::ObstacleAvoidance ( unsigned int un_priority )
 	/* If above a threshold */
 	if ( fMaxProx > THRESHOLD )
 	{
-		avoidSuppressor = 1.0;
+		avoidSuppressor = 0.0;
 		
 		/* Set Leds to GREEN */
 		m_pcEpuck->SetAllColoredLeds(	LED_COLOR_GREEN);
@@ -544,7 +490,6 @@ void CIri2Controller::ObstacleAvoidance ( unsigned int un_priority )
 
 	m_fActivationTable[un_priority][0] = fRepelent;
 	m_fActivationTable[un_priority][1] = fMaxProx;
-	printf("(3) AVOID_fRepelent = %2.4f\n", fRepelent);
 	
 	if (m_nWriteToFile ) 
 	{
@@ -559,15 +504,13 @@ void CIri2Controller::ObstacleAvoidance ( unsigned int un_priority )
 	
 }
 
-
+// Comportamiento que hace al robot navegar en ausencia de otros comportamiendos a una velocidad que depende de si es de día o de noche.
 void CIri2Controller::Navigate ( unsigned int un_priority )
 {
 
 	double* light = m_seLight->GetSensorReading(m_pcEpuck);
 	m_seLight = (CRealLightSensor*) m_pcEpuck->GetSensor(SENSOR_REAL_LIGHT);
 
-	srand((int)time(0));
-	int r = rand() % 10;
 	
 	m_fActivationTable[un_priority][0] = 0.0;
 	m_fActivationTable[un_priority][1] = 0.5;
@@ -591,6 +534,7 @@ void CIri2Controller::Navigate ( unsigned int un_priority )
 
 }
 
+// Comportamiento que busca las luces azules y las apaga cuando está cerca.
 void CIri2Controller::Consume ( unsigned int un_priority )
 {
 	double* bluelight = m_seBlueLight->GetSensorReading(m_pcEpuck);
@@ -608,7 +552,7 @@ void CIri2Controller::Consume ( unsigned int un_priority )
 	if (consumeInhibitor == 1.0){
 
 		hasLightTurnedOff = false;
-
+		printf("CONSUME\n");
 	/* Calc vector Sum */
 		for ( int i = 0 ; i < m_seBlueLight->GetNumberOfInputs() ; i ++ )
 		{
@@ -634,17 +578,11 @@ void CIri2Controller::Consume ( unsigned int un_priority )
 			m_seBlueLight -> SwitchNearestLight(0);
 			hasLightTurnedOff = true;			
 		}
-		if (fRepelent != 0){
-			m_pcEpuck->SetAllColoredLeds(LED_COLOR_BLUE);
-		}
 
 	}
 
 	m_fActivationTable[un_priority][0] = fRepelent;
 	m_fActivationTable[un_priority][1] = 1.5;
-
-
-	printf("CONSUME_fRepelent = %2.4f\n", fRepelent);
 
 	if (m_nWriteToFile ) 
 	{
@@ -658,6 +596,7 @@ void CIri2Controller::Consume ( unsigned int un_priority )
 
 }
 
+// Comportamiento que determina si se pueden depositar los residuos de las bacterias en el suelo dependiendo del color de este.
 void CIri2Controller::Unload ()
 {
 	double* ground = m_seGround->GetSensorReading(m_pcEpuck);
@@ -669,7 +608,7 @@ void CIri2Controller::Unload ()
 
 }
 
-
+// Comportamiento que evita las luces azules cuando es necesario.
 void CIri2Controller::AvoidBlue( unsigned int un_priority )
 {
 	double* bluelight = m_seBlueLight->GetSensorReading(m_pcEpuck);
@@ -679,13 +618,15 @@ void CIri2Controller::AvoidBlue( unsigned int un_priority )
 	dVector2 vRepelent;
 	vRepelent.x = 0.0;
 	vRepelent.y = 0.0;
-	consumeInhibitor = 1.0;
 	float fRepelent = 0.0;
 
 	if (bluebattery[0] == 1.0 && hasLightTurnedOff || avoidBlueSuppressor == 0.0){
-
-		m_pcEpuck->SetAllColoredLeds(LED_COLOR_YELLOW);
+		if (avoidBlueSuppressor != 0.0){
+			m_pcEpuck->SetAllColoredLeds(LED_COLOR_YELLOW);
+			printf("AVOID_BLUE\n");
+		}
 		consumeInhibitor = 0.0;
+		
 
 	/* Calc vector Sum */
 		for ( int i = 0 ; i < m_seBlueLight->GetNumberOfInputs() ; i ++ )
@@ -709,12 +650,9 @@ void CIri2Controller::AvoidBlue( unsigned int un_priority )
 		
 
 	}
-	if (bluebattery[0] < 1.0){
-		consumeInhibitor = 1.0;
-	}
+	
 	m_fActivationTable[un_priority][0] = fRepelent;
 	m_fActivationTable[un_priority][1] = 1.2;
-	printf("changeAngleAVOIDBLUE => %2.4f\n",m_fActivationTable[un_priority][0]);
 
 	if (m_nWriteToFile ) 
 	{
@@ -728,24 +666,25 @@ void CIri2Controller::AvoidBlue( unsigned int un_priority )
 
 }
 
+// Comportamiento que va en busca de las luces rojas cuando la batería está por debajo de un umbral.
 void CIri2Controller::Recharge ( unsigned int un_priority)
 {
 	double* redlight = m_seRedLight->GetSensorReading(m_pcEpuck);
 	double* redbattery = m_seRedBattery->GetSensorReading(m_pcEpuck);
 	const double* redLightDirections = m_seRedLight->GetSensorDirections();
 	
-	
-	
 	dVector2 vRepelent;
 	vRepelent.x = 0.0;
 	vRepelent.y = 0.0;
 
-	avoidBlueSuppressor = 1.0;
+	
 	float fRepelent = 0.0;
 
 	if (redbattery[0] < THRESHOLD){
 		avoidBlueSuppressor = 0.0;
+		goArteryInhibitor = 0.0;
 	/* Calc vector Sum */
+		printf("RECHARGE\n");
 		for ( int i = 0 ; i < m_seBlueLight->GetNumberOfInputs() ; i ++ )
 		{
 			vRepelent.x += redlight[i] * cos ( redLightDirections[i] );
@@ -761,11 +700,10 @@ void CIri2Controller::Recharge ( unsigned int un_priority)
 
 		m_pcEpuck->SetAllColoredLeds(LED_COLOR_RED);
 	}
-
+		
 	m_fActivationTable[un_priority][0] = fRepelent;
 	m_fActivationTable[un_priority][1] = 0.5;
 	
-	printf("changeAngleROJO => %2.4f\n",m_fActivationTable[un_priority][0]);
 
 	if (m_nWriteToFile ) 
 	{
@@ -779,8 +717,7 @@ void CIri2Controller::Recharge ( unsigned int un_priority)
 
 }
 
-// cada 2751 timestep enciende la luz mas cercana solo si esta apagada
-// ES POSIBLE QUE DE PROBLEMAS. HAY QUE VERLO MAS
+// Comportamiento que enciende la la luz azul más cercana solo si está apagada cada vez que se hace de día.
 void CIri2Controller::BacteriaAppears()
 {
 	m_seBlueLight = (CRealBlueLightSensor*) m_pcEpuck->GetSensor(SENSOR_REAL_BLUE_LIGHT);
@@ -789,15 +726,9 @@ void CIri2Controller::BacteriaAppears()
 		m_seBlueLight -> SwitchNearestLight(1);
 		hasBacteriaAppeared = true;
 	}
-
-	printf("----------------dayCounter: %i\n", dayCounter);
 }
 
-
-
-/******************************************************************************/
-/******************************************************************************/
-
+// Calcula la posicion y orientación del robot. Hay un ligero error.
 void CIri2Controller::CalcPositionAndOrientation (double *f_encoder)
 {
   /* DEBUG */ 
@@ -961,7 +892,7 @@ string CIri2Controller::pathFind( const int & xStart, const int & yStart,
 
 void CIri2Controller::PathPlanning ( unsigned int un_priority )
 {
-  /* Create Obstacle Map */ /* DUDA */
+  /* Create No-Obstacle Map */
 	for ( int y = 0 ; y < m ; y++ )
 	{
 		for ( int x = 0 ; x < n ; x++ )
@@ -1139,7 +1070,7 @@ for (int i = 0 ; i < m_nPathPlanningStops ; i++)
 for (int i = 0 ; i < m_nPathPlanningStops ; i++)
 {
     /* Traslation */ 
-	m_vPositionsPlanning[i].x += ( (robotStartGridX * fXmov) - (mapGridX * fXmov)/2);
+	m_vPositionsPlanning[i].x -= ( (robotStartGridX * fXmov) - (mapGridX * fXmov)/2);
 	m_vPositionsPlanning[i].y += ( (robotStartGridY * fXmov) - (mapGridY * fYmov)/2);
     /* Rotation */
 	// double compass = m_pcEpuck->GetRotation();
@@ -1191,10 +1122,9 @@ void CIri2Controller::ComputeActualCell ( unsigned int un_priority )
 	/* Leer Sensores de Suelo Memory */
   double* ground = m_seGround->GetSensorReading(m_pcEpuck);
 
-	
-		
-	
-  
+  double* light = m_seLight->GetSensorReading(m_pcEpuck);
+  double* bluebattery = m_seBlueBattery->GetSensorReading(m_pcEpuck);
+
   CalcPositionAndOrientation (encoder);
 
   /* DEBUG */
@@ -1217,15 +1147,11 @@ void CIri2Controller::ComputeActualCell ( unsigned int un_priority )
   
   
   /* DEBUG */
-  printf("GRID: X: %d, %d\n", m_nRobotActualGridX, m_nRobotActualGridY);
+  printf("GRID: (%i, %i)\n", m_nRobotActualGridX, m_nRobotActualGridY);
   /* DEBUG */
-  
-  /* Update no-obstacles on map */
-  // if (  onlineMap[m_nRobotActualGridX][m_nRobotActualGridY] != ARTERY )
-  //   onlineMap[m_nRobotActualGridX][m_nRobotActualGridY] = NO_OBSTACLE;
  
   /* If looking for Artery and arrived to Artery */
- if ((ground[0]== 0.5) && (ground[1] == 0.5) && (ground[2]== 0.5)){ // Si los tres sensores ground estan a cero descarga la bateria
+ if ((ground[0]== 0.5) && (ground[1] == 0.5) && (ground[2]== 0.5) && m_nArteryFound == 0){ // Si los tres sensores ground estan a cero descarga la bateria
     /* Mark Artery on map */
     onlineMap[m_nRobotActualGridX][m_nRobotActualGridY] = ARTERY;
     /* Flag that Artery was found */
@@ -1238,30 +1164,28 @@ void CIri2Controller::ComputeActualCell ( unsigned int un_priority )
     /* DEBUG */
   }//end looking for Artery
 
-  if (dayCounter % 2 == 0 && consumeInhibitor == 0.0 && onePathPlan){
+  //-------------------------------------------------------------------------------------------------------------------------------------------
+  if (light[0]+light[1]+light[2]+light[3]+light[4]+light[5]+light[6]+light[7]+light[8] != 0 && bluebattery[0] == 1.0 && onePathPlan){
 
   	m_nPathPlanningDone = 0;
   	m_nState = 0;
   	onePathPlan = false;
 
   }
-  
+  //-------------------------------------------------------------------------------------------------------------------------------------------
 }
 
 /******************************************************************************/
 /******************************************************************************/
 
+// Comportamiento que sirve para dirigir al robot hacia la zona gris cuando tiene la batería azul llena
 void CIri2Controller::GoToArtery ( unsigned int un_priority )
 {
-
-	double* redbattery = m_seRedBattery->GetSensorReading(m_pcEpuck);
+	double* bluebattery = m_seBlueBattery->GetSensorReading(m_pcEpuck);
 	double fGoalDirection = 0;
 
-  if ( redbattery[0] > THRESHOLD && consumeInhibitor == 0.0 && !onePathPlan) // Si se cumplen las condiciones
+  if ( goArteryInhibitor == 1.0 && bluebattery[0] == 1.0 && !onePathPlan) // Si se cumplen las condiciones
   {
-    /* Enable Inhibitor to Forage */
-    //fGoalToForageInhibitor = 0.0;
-
     /* If something not found at the end of planning, reset plans */
     if (m_nState >= m_nPathPlanningStops )
     {
@@ -1271,6 +1195,7 @@ void CIri2Controller::GoToArtery ( unsigned int un_priority )
     }
 
     /* DEBUG */
+    printf("GO_ARTERY\n");
     printf("PlanningX: %2f, Actual: %2f\n", m_vPositionsPlanning[m_nState].x, m_vPosition.x );
     printf("PlanningY: %2f, Actual: %2f\n", m_vPositionsPlanning[m_nState].y, m_vPosition.y );
     printf("m_nState: %i\n", m_nState);
@@ -1292,12 +1217,13 @@ void CIri2Controller::GoToArtery ( unsigned int un_priority )
     /* Normalize Direction */
     while ( fGoalDirection > M_PI) fGoalDirection -= 2 * M_PI;
     while ( fGoalDirection < -M_PI) fGoalDirection += 2 * M_PI;
+
   }
    m_fActivationTable[un_priority][0] = fGoalDirection;
    m_fActivationTable[un_priority][1] = 1.0;
 
 
-  printf(" fGoalDirection: %2f\n", fGoalDirection );
+ // printf(" fGoalDirection: %2f\n", fGoalDirection );
 }
 
 /******************************************************************************/

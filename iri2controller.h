@@ -47,6 +47,7 @@ private:
 	double		avoidSuppressor;
 	double		consumeInhibitor;
 	double		avoidBlueSuppressor;
+	double 		goArteryInhibitor;
 	
 	bool 		onePathPlan;
 
@@ -65,7 +66,6 @@ private:
 
 
     int 	speed;
-
 	/* Functions */
 
 	void ExecuteBehaviors ( void );
