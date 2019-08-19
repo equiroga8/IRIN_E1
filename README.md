@@ -8,3 +8,7 @@ The project consists of two parts, the first implements an architecture based on
 
 ![motor schema](https://edu-quiroga.neocities.org/IRIN%20Diagrama.jpeg)
 
+ ## Authors
+
+* **Rodrigo Martín** - [rodrimart97](https://github.com/rodrimart97)
+* **Eduardo Quiroga** - [equiroga8](https://github.com/equiroga8)
